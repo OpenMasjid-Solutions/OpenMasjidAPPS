@@ -83,6 +83,7 @@ settings:
 ports:
   - container: 80
     label: Web interface
+# sso: true                         # OPTIONAL — opt into single sign-on (see §7)
 ```
 
 Field types: `text` | `number` | `password` | `boolean` | `select` (needs `options`). Use
@@ -154,7 +155,55 @@ least-privilege, web port published, named volumes).
 
 ---
 
-## 7. Get listed in the catalog
+## 7. Platform integration — appearance & single sign-on (optional)
+
+Both are **optional and backwards-compatible** — your app must work standalone. The platform never
+sends masjid data; this is presentation + auth convenience only. The full normative contract lives in
+the platform repo's
+[`docs/APP_MANIFEST_SPEC.md`](https://github.com/hasan-ismail/OpenMasjidOS/blob/master/docs/APP_MANIFEST_SPEC.md).
+
+**Appearance (no opt-in needed).** When the dashboard opens your app it appends a URL fragment
+`#omos=<base64url JSON>` carrying `{ v, theme, wallpaper, wallpaperImage?, accent, lang }`
+(presentation only). Read `location.hash` on load, apply + persist, then clear the hash. For live
+theme changes, poll `GET ${OPENMASJID_BASE_URL}/api/public/appearance` (public, CORS-enabled).
+The `#omos=` fragment is **attacker-craftable** — treat it as untrusted presentation input, never as
+identity, and sanitize any URL you read (require `http(s)` on `wallpaperImage`).
+
+**Single sign-on — opt in with `sso: true`.** Add `sso: true` to your `manifest.yaml`. At install the
+platform then injects into your container's env:
+
+- `OPENMASJID_APP_ID` — your app id,
+- `OPENMASJID_BASE_URL` — the platform's address (set **only** by the platform — never let anything
+  else set it; it's where you forward the user's cookie),
+- `OPENMASJID_APP_SECRET` — a per-app secret. **Treat it as a credential — never log or expose it.**
+
+To check whether the current visitor is the signed-in OpenMasjidOS admin, your **backend**
+(server→server, never from the browser) calls:
+
+```
+GET ${OPENMASJID_BASE_URL}/api/auth/session
+  Cookie: omos_session=<the value from THIS request's cookie, forwarded verbatim>
+  X-OpenMasjid-App-Secret: <OPENMASJID_APP_SECRET>
+→ 200 { "authenticated": true, "username": "…" }   // or { "authenticated": false }
+```
+
+Rules:
+
+- Read `omos_session` **only** from the incoming request's cookie — never from a query/header/body.
+- Send `OPENMASJID_APP_SECRET` in the `X-OpenMasjid-App-Secret` header. Without it the platform returns
+  `authenticated:false` — the check is bound to your app's identity, so the shared session cookie
+  can't let some other installed app validate as you.
+- It **fails closed** and is **not** CORS-enabled (server→server only). Treat `username` as an
+  untrusted display string (cap/escape it). Never trust a browser-supplied username.
+- Cache a positive result briefly (~45 s) and cap the session you mint (~1 h) so a logged-out admin
+  doesn't linger. **Always** fall back to your own login when the base URL/secret is unset, the cookie
+  is absent, or the platform says `false` — so your app still works standalone.
+- Same-host only (plain-HTTP LAN, `SameSite=Strict`). If your app ever runs cross-host, this must be
+  HTTPS.
+
+---
+
+## 8. Get listed in the catalog
 
 Open a PR to **OpenMasjidAPPS** adding your app to [`../registry.yaml`](../registry.yaml):
 
@@ -170,7 +219,7 @@ store.
 
 ---
 
-## 8. Pre-submit checklist
+## 9. Pre-submit checklist
 
 - [ ] `id` kebab-case and identical in manifest + registry.
 - [ ] `manifest.yaml` has `name`, `version` (semver), valid `category`; `icon`/`screenshots` are
@@ -183,4 +232,6 @@ store.
       `prefers-reduced-motion`; works LTR and RTL.
 - [ ] Installs and **opens cleanly on a real OpenMasjidOS instance** with only the settings
       collected at install time.
+- [ ] If using SSO (`sso: true`): backend sends `X-OpenMasjid-App-Secret`, reads the cookie only from
+      the request, fails closed, and falls back to the app's own login when the platform is absent.
 - [ ] No copied Umbrel/CasaOS definitions or assets; no sacred text in decorative chrome.

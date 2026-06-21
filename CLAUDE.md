@@ -77,6 +77,7 @@ OpenMasjidOS repo.**
    | `description` | – | Markdown, shown on the detail page. |
    | `settings` | – | Array of fields the user fills in before install (see §7). |
    | `ports` | – | Array of `{ container: number, label?: string }` — informational. |
+   | `sso` | – | `true` to opt into single sign-on (§7b). The platform then issues the app a per-app secret at install and honours its `/api/auth/session` calls. Omit/false = no SSO. |
 
 4. **Install mechanics** (from `packages/core/src/apps/manager.ts`): on install the platform
    writes the `compose` string to `compose.yml`, writes the user's `settings` answers to a `.env`,
@@ -202,6 +203,7 @@ settings:                         # see §7 — everything masjid-specific is co
 ports:
   - container: 80
     label: Web interface
+# sso: true                       # OPTIONAL — opt into single sign-on (see §7b)
 ```
 
 ---
@@ -224,6 +226,34 @@ Each item in `settings` (from `SettingField` in the platform):
   is written as in `.env` and what `${KEY}` resolves to in the compose.
 - The platform writes `.env` as `KEY=VALUE` lines, so **keep values single-line** (no newlines).
   Collect **everything masjid-specific here** — the platform injects nothing.
+
+---
+
+## 7b. Single sign-on (optional)
+
+Set `sso: true` in `manifest.yaml` to opt an app into sharing the dashboard login. SSO is **optional,
+backwards-compatible, and identity-bound**: the app must work standalone, and the platform binds each
+session check to the calling app so the shared `omos_session` cookie can't let one installed app
+validate as another. On install of an `sso: true` app the platform injects into its container env:
+
+- `OPENMASJID_APP_ID` — the app id,
+- `OPENMASJID_BASE_URL` — the platform's address (set **only** by the platform),
+- `OPENMASJID_APP_SECRET` — a per-app secret (a credential; never log/expose it).
+
+The app's **backend** (server→server) checks the visitor's session with:
+
+```
+GET ${OPENMASJID_BASE_URL}/api/auth/session
+  Cookie: omos_session=<forwarded verbatim from THIS request's cookie — never a query/header/body>
+  X-OpenMasjid-App-Secret: <OPENMASJID_APP_SECRET>
+→ { "authenticated": true, "username": "…" }  |  { "authenticated": false }
+```
+
+It **fails closed**, is **not** CORS-enabled, and returns `false` without a valid secret. Apps must
+treat `username` as untrusted display text, cache positives briefly (~45 s), cap the minted session
+(~1 h), and always fall back to their own login when the platform is absent. Full normative contract:
+[`docs/BUILDING_AN_APP.md` §7](docs/BUILDING_AN_APP.md) + the platform's `docs/APP_MANIFEST_SPEC.md`.
+This must stay in lock-step with the platform — if it changes there, change it here too.
 
 ---
 

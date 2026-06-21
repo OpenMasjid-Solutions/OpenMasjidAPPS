@@ -2,7 +2,8 @@
   "name": "openmasjid-apps",
   "private": true,
   "type": "module",
-  "description": "The app catalog for OpenMasjidOS. `npm run build` regenerates catalog.json from apps/*.",
+  "license": "AGPL-3.0-only",
+  "description": "The app catalog for OpenMasjidOS. `npm run build` regenerates catalog.json from registry.yaml.",
   "scripts": {
     "build": "node scripts/build-catalog.mjs"
   },

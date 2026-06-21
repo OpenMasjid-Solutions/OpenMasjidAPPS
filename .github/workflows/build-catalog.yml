@@ -1,17 +1,24 @@
 name: Build catalog
 
-# Regenerate catalog.json (the file OpenMasjidOS fetches) whenever apps or the
-# build tooling change, and commit it back so the published catalog is in sync.
+# Regenerate catalog.json (the file OpenMasjidOS fetches) from registry.yaml.
+# The build script fetches each listed app repo's manifest + compose + assets and
+# assembles the catalog, so we rebuild when the registry/tooling changes, on a
+# daily schedule (to pick up apps whose entry tracks a branch), on manual run, and
+# when an app repo signals a new release via repository_dispatch.
 
 on:
   push:
     branches: [main]
     paths:
-      - 'apps/**'
+      - 'registry.yaml'
       - 'scripts/**'
       - 'package.json'
       - '.github/workflows/build-catalog.yml'
+  schedule:
+    - cron: '17 6 * * *'
   workflow_dispatch:
+  repository_dispatch:
+    types: [rebuild-catalog]
 
 permissions:
   contents: write

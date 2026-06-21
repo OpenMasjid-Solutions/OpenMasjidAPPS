@@ -1,75 +1,124 @@
 /**
- * Builds catalog.json from apps/*.
+ * Builds catalog.json by aggregating the app repositories listed in registry.yaml.
  *
- * For each apps/<id>/ folder it reads manifest.yaml, validates it, embeds the
- * app's docker-compose.yml as the `compose` string, rewrites icon/screenshots
- * to absolute raw URLs, and writes { apps: [...] } to catalog.json at the repo
- * root — the exact file OpenMasjidOS fetches. See CLAUDE.md.
+ * Each app lives in its OWN repository. For every registry entry this script:
+ *   1. fetches that repo's manifest.yaml and docker-compose.yml (at the pinned ref),
+ *   2. validates the id / required fields / category and scans the compose for
+ *      disallowed (dangerous) directives,
+ *   3. rewrites icon/screenshots to absolute raw URLs in that repo,
+ *   4. embeds the compose text as the entry's `compose` string,
+ * then writes { apps: [...] } to catalog.json at the repo root — the exact file
+ * and shape OpenMasjidOS fetches. The platform contract is unchanged; only the
+ * SOURCE of each entry moved from local folders to external repos. See CLAUDE.md.
  *
- * Run: npm install && node scripts/build-catalog.mjs
+ * Run: npm install && node scripts/build-catalog.mjs   (needs network access)
  */
-import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { parse } from 'yaml';
 
-// Update these if the repo is renamed/forked, or the catalog moves off `main`.
-const REPO = 'hasan-ismail/OpenMasjidAPPS';
-const BRANCH = 'main';
+const REGISTRY = 'registry.yaml';
 
-const APP_ID_RE = /^[a-z0-9][a-z0-9-]{0,79}$/; // must match OpenMasjidOS's isValidAppId
+// Must match OpenMasjidOS's isValidAppId — the platform drops invalid ids.
+const APP_ID_RE = /^[a-z0-9][a-z0-9-]{0,79}$/;
 const CATEGORIES = new Set(['displays', 'donations', 'community', 'quran', 'admin', 'utilities']);
-const APPS_DIR = 'apps';
 
-const raw = (p) => `https://raw.githubusercontent.com/${REPO}/${BRANCH}/${p.replace(/\\/g, '/')}`;
+// Compose directives we refuse to publish. The platform also warns on these, but
+// the catalog should never ship a stack that asks for host-level privilege.
+const DANGEROUS = [
+  { re: /\bprivileged:\s*true\b/, why: 'privileged: true' },
+  { re: /\bnetwork_mode:\s*["']?host\b/, why: 'network_mode: host' },
+  { re: /\bpid:\s*["']?host\b/, why: 'pid: host' },
+  { re: /\bipc:\s*["']?host\b/, why: 'ipc: host' },
+  { re: /\bcap_add\s*:/, why: 'cap_add' },
+  { re: /\/var\/run\/docker\.sock/, why: 'mounting the Docker socket' },
+];
 
 function fail(msg) {
   console.error(`✗ ${msg}`);
   process.exit(1);
 }
 
-const apps = [];
+async function fetchText(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.text();
+}
 
-if (existsSync(APPS_DIR)) {
-  for (const id of readdirSync(APPS_DIR).sort()) {
-    const dir = join(APPS_DIR, id);
-    if (!statSync(dir).isDirectory()) continue;
+// raw.githubusercontent.com base for a repo/ref (+ optional subpath), trailing slash.
+function rawBase(repo, ref, path) {
+  const sub = path ? `${String(path).replace(/^\/+|\/+$/g, '')}/` : '';
+  return `https://raw.githubusercontent.com/${repo}/${ref}/${sub}`;
+}
 
-    const manifestPath = join(dir, 'manifest.yaml');
-    const composePath = join(dir, 'docker-compose.yml');
-    if (!existsSync(manifestPath)) fail(`${id}: missing manifest.yaml`);
-    if (!existsSync(composePath)) fail(`${id}: missing docker-compose.yml`);
-
-    let m;
-    try {
-      m = parse(readFileSync(manifestPath, 'utf8')) ?? {};
-    } catch (e) {
-      fail(`${id}: manifest.yaml is not valid YAML — ${e.message}`);
-    }
-
-    if (m.id !== id) fail(`${id}: manifest id "${m.id}" must equal the folder name "${id}"`);
-    if (!APP_ID_RE.test(id)) fail(`${id}: invalid id — use kebab-case (a-z, 0-9, -), max 80 chars`);
-    if (!m.name) fail(`${id}: "name" is required`);
-    if (!m.version) fail(`${id}: "version" is required`);
-    if (m.category && !CATEGORIES.has(m.category)) {
-      fail(`${id}: unknown category "${m.category}" (use: ${[...CATEGORIES].join(', ')})`);
-    }
-
-    apps.push({
-      id,
-      name: m.name,
-      tagline: m.tagline,
-      category: m.category,
-      version: String(m.version),
-      author: m.author,
-      license: m.license,
-      icon: m.icon ? raw(join(dir, m.icon)) : undefined,
-      screenshots: Array.isArray(m.screenshots) ? m.screenshots.map((s) => raw(join(dir, s))) : undefined,
-      description: m.description,
-      settings: m.settings,
-      ports: m.ports,
-      compose: readFileSync(composePath, 'utf8'),
-    });
+let registry = { apps: [] };
+if (existsSync(REGISTRY)) {
+  try {
+    registry = parse(readFileSync(REGISTRY, 'utf8')) ?? { apps: [] };
+  } catch (e) {
+    fail(`${REGISTRY} is not valid YAML — ${e.message}`);
   }
+}
+const entries = Array.isArray(registry.apps) ? registry.apps : [];
+
+const apps = [];
+const seen = new Set();
+
+for (const entry of entries) {
+  const { id, repo, ref = 'main', path } = entry || {};
+  if (!id || !repo) fail(`registry entry is missing "id" or "repo": ${JSON.stringify(entry)}`);
+  if (!APP_ID_RE.test(id)) fail(`${id}: invalid id — use kebab-case (a-z, 0-9, -), max 80 chars`);
+  if (seen.has(id)) fail(`duplicate id in registry: ${id}`);
+  seen.add(id);
+
+  const base = rawBase(repo, ref, path);
+
+  let manifestText, composeText;
+  try {
+    manifestText = await fetchText(base + 'manifest.yaml');
+  } catch (e) {
+    fail(`${id}: could not fetch manifest.yaml from ${repo}@${ref} (${e.message})`);
+  }
+  try {
+    composeText = await fetchText(base + 'docker-compose.yml');
+  } catch (e) {
+    fail(`${id}: could not fetch docker-compose.yml from ${repo}@${ref} (${e.message})`);
+  }
+
+  let m;
+  try {
+    m = parse(manifestText) ?? {};
+  } catch (e) {
+    fail(`${id}: manifest.yaml is not valid YAML — ${e.message}`);
+  }
+
+  if (m.id !== id) fail(`${id}: manifest id "${m.id}" must equal the registry id "${id}"`);
+  if (!m.name) fail(`${id}: manifest "name" is required`);
+  if (!m.version) fail(`${id}: manifest "version" is required`);
+  if (m.category && !CATEGORIES.has(m.category)) {
+    fail(`${id}: unknown category "${m.category}" (use: ${[...CATEGORIES].join(', ')})`);
+  }
+  for (const { re, why } of DANGEROUS) {
+    if (re.test(composeText)) fail(`${id}: docker-compose.yml requests "${why}", which is not allowed. See CLAUDE.md §security.`);
+  }
+
+  apps.push({
+    id,
+    name: m.name,
+    tagline: m.tagline,
+    category: m.category,
+    version: String(m.version),
+    author: m.author,
+    license: m.license,
+    icon: m.icon ? base + String(m.icon).replace(/^\/+/, '') : undefined,
+    screenshots: Array.isArray(m.screenshots)
+      ? m.screenshots.map((s) => base + String(s).replace(/^\/+/, ''))
+      : undefined,
+    description: m.description,
+    settings: m.settings,
+    ports: m.ports,
+    compose: composeText,
+  });
+  console.log(`✓ ${id} ← ${repo}@${ref}`);
 }
 
 apps.sort((a, b) => a.name.localeCompare(b.name));

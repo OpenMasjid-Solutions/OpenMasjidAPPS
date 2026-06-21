@@ -1,7 +1,11 @@
 # Announcements Board
 
-A clean, full-screen rotating notice board for the screens in your masjid. Part of the
-[OpenMasjidAPPS](../../README.md) catalog for [OpenMasjidOS](https://github.com/hasan-ismail/OpenMasjidOS).
+> **Reference example.** This is a complete, working app kept here as a template. To ship it, copy
+> this folder into its **own repo** (`openmasjid-announcements-board`) and list that repo in the
+> catalog's [`registry.yaml`](../../registry.yaml). See [docs/BUILDING_AN_APP.md](../../docs/BUILDING_AN_APP.md).
+
+A clean, full-screen rotating notice board for the screens in your masjid, for use with
+[OpenMasjidOS](https://github.com/hasan-ismail/OpenMasjidOS).
 
 It cycles through the announcements you enter — Jummah timings, classes, fundraisers,
 reminders — with a live clock, the date, and an optional footer note.

@@ -1,7 +1,11 @@
 # Prayer Times Display
 
-A calm, full-screen prayer-times display for the screens in your masjid. Part of the
-[OpenMasjidAPPS](../../README.md) catalog for [OpenMasjidOS](https://github.com/hasan-ismail/OpenMasjidOS).
+> **Reference example.** This is a complete, working app kept here as a template. To ship it, copy
+> this folder into its **own repo** (`openmasjid-prayer-times-display`) and list that repo in the
+> catalog's [`registry.yaml`](../../registry.yaml). See [docs/BUILDING_AN_APP.md](../../docs/BUILDING_AN_APP.md).
+
+A calm, full-screen prayer-times display for the screens in your masjid, for use with
+[OpenMasjidOS](https://github.com/hasan-ismail/OpenMasjidOS).
 
 It shows a large live clock, the Hijri and Gregorian dates, the five daily prayers plus
 sunrise, and a countdown to the next prayer — with the current prayer gently highlighted.

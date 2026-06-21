@@ -1,0 +1,28 @@
+# OpenMasjidAPPS registry
+# ---------------------------------------------------------------------------
+# This is the ONLY hand-edited source of truth for the catalog. Each app lives
+# in its OWN public repository; this file just lists them. The build script
+# (scripts/build-catalog.mjs) fetches each repo's manifest.yaml +
+# docker-compose.yml (+ icon/screenshots) and assembles catalog.json — the file
+# OpenMasjidOS actually fetches.
+#
+# To list an app, open a PR adding an entry below. Each entry:
+#
+#   - id:   <app-id>                 # kebab-case, must equal the app's manifest id
+#     repo: <owner>/<repo>           # the app's own GitHub repository
+#     ref:  v1.0.0                   # a git TAG (recommended) or branch to pin to
+#     path: subdir                   # OPTIONAL — if manifest.yaml isn't at the repo root
+#
+# Requirements an app repo must meet are in CLAUDE.md and docs/BUILDING_AN_APP.md.
+# Complete, working reference apps live under examples/ in this repo — copy one
+# into a new repo to start.
+# ---------------------------------------------------------------------------
+
+apps: []
+  # Example (uncomment and adapt once the app repo exists):
+  # - id: prayer-times-display
+  #   repo: hasan-ismail/openmasjid-prayer-times-display
+  #   ref: v1.0.0
+  # - id: announcements-board
+  #   repo: hasan-ismail/openmasjid-announcements-board
+  #   ref: v1.0.0

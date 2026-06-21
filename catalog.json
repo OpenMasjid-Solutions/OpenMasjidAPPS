@@ -5,14 +5,14 @@
       "name": "OpenMasjid Display",
       "tagline": "Run prayer timetables, cameras and HDMI on every screen in your masjid — over your network",
       "category": "displays",
-      "version": "0.6.3",
+      "version": "0.7.0",
       "author": "hasan-ismail",
       "license": "AGPL-3.0",
-      "icon": "https://raw.githubusercontent.com/hasan-ismail/OpenMasjidDisplay/v0.6.3/icon.svg",
+      "icon": "https://raw.githubusercontent.com/hasan-ismail/OpenMasjidDisplay/v0.7.0/icon.svg",
       "screenshots": [
-        "https://raw.githubusercontent.com/hasan-ismail/OpenMasjidDisplay/v0.6.3/screenshots/1.svg",
-        "https://raw.githubusercontent.com/hasan-ismail/OpenMasjidDisplay/v0.6.3/screenshots/2.svg",
-        "https://raw.githubusercontent.com/hasan-ismail/OpenMasjidDisplay/v0.6.3/screenshots/3.svg"
+        "https://raw.githubusercontent.com/hasan-ismail/OpenMasjidDisplay/v0.7.0/screenshots/1.svg",
+        "https://raw.githubusercontent.com/hasan-ismail/OpenMasjidDisplay/v0.7.0/screenshots/2.svg",
+        "https://raw.githubusercontent.com/hasan-ismail/OpenMasjidDisplay/v0.7.0/screenshots/3.svg"
       ],
       "description": "**OpenMasjid Display** turns one small computer into the control room for every\nscreen in your masjid. Each TV gets its own network video link (RTSP) that you\npoint a cheap \"RTSP decoder\" box at once — then you decide, from your phone or a\ncomputer, what each screen shows:\n\n- **Prayer timetables** — beautiful, full-screen prayer clocks calculated on the\n  device (no internet needed). Make as many as you like, each with its own colours\n  to match the room it hangs in. Shows a large live clock, the Hijri and Gregorian\n  dates, every prayer's Adhan **and** Iqamah time, Jumu'ah, and a gentle countdown\n  to the next prayer with the current prayer highlighted.\n- **Cameras** — bring in any security/IP camera or an imam camera and put it on a\n  screen with one tap (great for overflow rooms and the women's section).\n- **HDMI sources** — plug a laptop or a recording into an HDMI-to-network encoder\n  and send it to the screens you choose.\n\nSet it once and forget it: a weekly **schedule** can switch a screen to a camera\nfor Jumu'ah, then back to the timetable afterwards — automatically. Volunteers can\nalways take over instantly from the simple mobile page.\n\nIt's designed to be light enough for a Raspberry Pi, a mini-PC, or a Proxmox\ncontainer, and the whole control panel matches the calm OpenMasjidOS look in both\nlight and dark.\n\n**Nothing to fill in here — just install.** When it's running, click **Open** —\nit signs you in with your OpenMasjidOS login and matches your dashboard's light/dark\nlook and wallpaper. Then set everything up inside: your masjid details, your screens,\ncameras and schedules. Each screen shows you the exact link to paste into its decoder —\nno network address to look up.\n",
       "ports": [
@@ -25,7 +25,7 @@
           "label": "RTSP video for the screens"
         }
       ],
-      "compose": "# OpenMasjid Display — one container that runs everything:\n#   • the control panel (web UI + API),\n#   • the timetable video renderer, and\n#   • the RTSP server (MediaMTX) every screen's decoder connects to.\n# Bundling them keeps it simple: one image to install, one to update. It stays\n# least-privilege: no privileged mode, host networking, devices or sockets.\n#\n# Nothing to configure at install time: install it, open the control panel,\n# create your password, and set everything up inside the app (saved to /data).\n# Screens find this server automatically from the address you open the panel with.\nservices:\n  app:\n    image: ghcr.io/hasan-ismail/openmasjiddisplay:0.6.3\n    restart: unless-stopped\n    environment:\n      PORT: \"8080\"\n      DATA_DIR: /data\n    ports:\n      # host:container. OpenMasjidOS offers \"Open\" on the LOWEST published port,\n      # so the control panel (7860) must stay below the RTSP port (8554). The\n      # platform picks a different free host port automatically if one is taken.\n      - \"7860:8080\"\n      # RTSP video — each screen's decoder connects here (TCP).\n      - \"8554:8554\"\n    volumes:\n      - data:/data\n\nvolumes:\n  data:\n"
+      "compose": "# OpenMasjid Display — one container that runs everything:\n#   • the control panel (web UI + API),\n#   • the timetable video renderer, and\n#   • the RTSP server (MediaMTX) every screen's decoder connects to.\n# Bundling them keeps it simple: one image to install, one to update. It stays\n# least-privilege: no privileged mode, host networking, devices or sockets.\n#\n# Nothing to configure at install time: install it, open the control panel,\n# create your password, and set everything up inside the app (saved to /data).\n# Screens find this server automatically from the address you open the panel with.\nservices:\n  app:\n    image: ghcr.io/hasan-ismail/openmasjiddisplay:0.7.0\n    restart: unless-stopped\n    environment:\n      PORT: \"8080\"\n      DATA_DIR: /data\n    ports:\n      # host:container. OpenMasjidOS offers \"Open\" on the LOWEST published port,\n      # so the control panel (7860) must stay below the RTSP port (8554). The\n      # platform picks a different free host port automatically if one is taken.\n      - \"7860:8080\"\n      # RTSP video — each screen's decoder connects here (TCP).\n      - \"8554:8554\"\n    volumes:\n      - data:/data\n\nvolumes:\n  data:\n"
     }
   ]
 }

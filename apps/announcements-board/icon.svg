@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Announcements Board">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#16271f"/>
+      <stop offset="1" stop-color="#0e1814"/>
+    </linearGradient>
+    <linearGradient id="board" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#20342c"/>
+      <stop offset="1" stop-color="#16271f"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e6c768"/>
+      <stop offset="1" stop-color="#d4af37"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- arch-topped notice board -->
+  <path d="M120 232a136 136 0 0 1 272 0v176a16 16 0 0 1-16 16H136a16 16 0 0 1-16-16V232Z"
+        fill="url(#board)" stroke="#1fa37a" stroke-opacity="0.55" stroke-width="5"/>
+
+  <!-- crescent finial at the top of the arch -->
+  <g transform="translate(256 92)">
+    <path d="M0 0a22 22 0 1 0 16 37A28 28 0 1 1 0 0Z" fill="url(#gold)"/>
+  </g>
+
+  <!-- lines of "text" / announcements -->
+  <g fill="#2bbf90">
+    <rect x="168" y="232" width="176" height="16" rx="8" opacity="0.95"/>
+    <rect x="168" y="276" width="120" height="12" rx="6" fill="#9db5aa" opacity="0.7"/>
+  </g>
+  <g fill="#9db5aa" opacity="0.55">
+    <rect x="168" y="312" width="176" height="10" rx="5"/>
+    <rect x="168" y="338" width="150" height="10" rx="5"/>
+    <rect x="168" y="364" width="176" height="10" rx="5"/>
+  </g>
+
+  <!-- progress dots -->
+  <g>
+    <circle cx="226" cy="406" r="7" fill="url(#gold)"/>
+    <circle cx="256" cy="406" r="7" fill="#5f786d"/>
+    <circle cx="286" cy="406" r="7" fill="#5f786d"/>
+  </g>
+</svg>

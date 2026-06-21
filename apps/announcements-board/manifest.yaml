@@ -1,0 +1,104 @@
+id: announcements-board
+name: Announcements Board
+tagline: A rotating notice board for your masjid's screens
+category: community
+version: 1.0.0
+author: OpenMasjidAPPS
+license: MIT
+icon: icon.svg
+screenshots:
+  - screenshots/1.svg
+description: |
+  A clean, full-screen notice board for the TVs and monitors in your masjid. It gently
+  rotates through your announcements — Jummah timings, classes, fundraisers, reminders —
+  alongside a live clock and the date.
+
+  Type your announcements into the slots below (you can leave the unused ones blank).
+  Each one becomes a slide. You can set how many seconds each slide stays on screen and add
+  an optional note that stays along the bottom (great for a website or a short reminder).
+
+  **After installing:** open the app and set the screen to full-screen (most TVs and browsers
+  do this with the F11 key). To change your announcements later, update this app's settings in
+  OpenMasjidOS and restart it.
+settings:
+  - key: MASJID_NAME
+    label: Masjid name
+    type: text
+    default: Our Masjid
+  - key: ANN1_TITLE
+    label: Announcement 1 — title
+    type: text
+    default: Jummah Prayer
+  - key: ANN1_TEXT
+    label: Announcement 1 — details
+    type: text
+    default: "First khutbah 1:00 PM · Second 1:45 PM"
+  - key: ANN2_TITLE
+    label: Announcement 2 — title
+    type: text
+    default: ""
+  - key: ANN2_TEXT
+    label: Announcement 2 — details
+    type: text
+    default: ""
+  - key: ANN3_TITLE
+    label: Announcement 3 — title
+    type: text
+    default: ""
+  - key: ANN3_TEXT
+    label: Announcement 3 — details
+    type: text
+    default: ""
+  - key: ANN4_TITLE
+    label: Announcement 4 — title
+    type: text
+    default: ""
+  - key: ANN4_TEXT
+    label: Announcement 4 — details
+    type: text
+    default: ""
+  - key: ANN5_TITLE
+    label: Announcement 5 — title
+    type: text
+    default: ""
+  - key: ANN5_TEXT
+    label: Announcement 5 — details
+    type: text
+    default: ""
+  - key: ANN6_TITLE
+    label: Announcement 6 — title
+    type: text
+    default: ""
+  - key: ANN6_TEXT
+    label: Announcement 6 — details
+    type: text
+    default: ""
+  - key: ROTATE_SECONDS
+    label: Seconds each announcement stays on screen
+    type: number
+    default: "12"
+  - key: FOOTER_NOTE
+    label: Footer note (optional — e.g. your website)
+    type: text
+    default: ""
+  - key: SHOW_TIME
+    label: Show the clock and date
+    type: boolean
+    default: "true"
+  - key: TIME_FORMAT
+    label: Clock format
+    type: select
+    options: [12h, 24h]
+    default: 12h
+  - key: TIMEZONE
+    label: Time zone (e.g. America/New_York — leave blank to use this screen's zone)
+    type: text
+    default: ""
+  - key: LANGUAGE
+    label: Language for dates
+    type: select
+    options: [en, ar, ur]
+    default: en
+ports:
+  - container: 80
+    label: Web interface

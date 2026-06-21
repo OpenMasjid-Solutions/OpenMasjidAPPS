@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" font-family="ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="-10%" r="120%">
+      <stop offset="0" stop-color="#16271f"/>
+      <stop offset="0.55" stop-color="#0e1814"/>
+    </radialGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eaf3ee"/>
+      <stop offset="1" stop-color="#c8ddd2"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+
+  <!-- masthead -->
+  <line x1="72" y1="150" x2="1528" y2="150" stroke="#ffffff" stroke-opacity="0.06" stroke-width="2"/>
+  <g transform="translate(72 72)">
+    <circle cx="26" cy="22" r="26" fill="#1fa37a" opacity="0.18"/>
+    <path d="M26 6c8 5 12 11 12 18v2H14v-2c0-7 4-13 12-18Z" fill="#1fa37a"/>
+    <text x="70" y="34" fill="#eaf3ee" font-size="42" font-weight="600">Masjid Al-Noor</text>
+  </g>
+  <g transform="translate(1528 78)" text-anchor="end">
+    <text y="24" fill="#e6c768" font-size="34">1:24 PM</text>
+    <text y="58" fill="#9db5aa" font-size="22">Saturday, 20 June</text>
+  </g>
+
+  <!-- slide -->
+  <g text-anchor="middle">
+    <text x="800" y="370" fill="#2bbf90" font-size="26" font-weight="600" letter-spacing="6">ANNOUNCEMENT</text>
+    <text x="800" y="470" fill="url(#title)" font-size="110" font-weight="600">Jummah Prayer</text>
+    <text x="800" y="545" fill="#9db5aa" font-size="42">First khutbah 1:00 PM · Second 1:45 PM</text>
+  </g>
+
+  <!-- footer -->
+  <line x1="72" y1="788" x2="1528" y2="788" stroke="#ffffff" stroke-opacity="0.06" stroke-width="2"/>
+  <g transform="translate(72 828)">
+    <circle cx="0" cy="0" r="7" fill="#d4af37"/>
+    <circle cx="26" cy="0" r="6" fill="#5f786d"/>
+    <circle cx="50" cy="0" r="6" fill="#5f786d"/>
+  </g>
+  <text x="800" y="834" text-anchor="middle" fill="#9db5aa" font-size="24">www.masjidalnoor.org</text>
+  <g transform="translate(1408 824)">
+    <rect width="120" height="6" rx="3" fill="#ffffff" fill-opacity="0.08"/>
+    <rect width="74" height="6" rx="3" fill="#1fa37a"/>
+  </g>
+</svg>

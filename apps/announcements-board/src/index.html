@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Announcements</title>
+    <meta name="description" content="A full-screen announcements board for your masjid." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%93%A2%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="css/style.css" />
+    <script src="config.js"></script>
+  </head>
+  <body>
+    <div class="pattern" aria-hidden="true"></div>
+    <main id="app" class="board">
+      <header class="masthead">
+        <div class="brand">
+          <svg class="mark" viewBox="0 0 48 48" aria-hidden="true">
+            <path d="M24 4c4.5 3 7 6.5 7 10.5 0 2.2-1 4.1-2.6 5.7H19.6C18 18.6 17 16.7 17 14.5 17 10.5 19.5 7 24 4Z" fill="currentColor" opacity="0.9" />
+            <path d="M9 22h30v3H9z" fill="currentColor" opacity="0.6" />
+            <path d="M11 25h26v17H28v-9a4 4 0 0 0-8 0v9h-9V25Z" fill="currentColor" opacity="0.8" />
+          </svg>
+          <h1 id="masjid-name" class="masjid-name">Our Masjid</h1>
+        </div>
+        <div class="clock-wrap" id="clock-wrap">
+          <div id="clock" class="clock">--:--</div>
+          <div id="today" class="today"></div>
+        </div>
+      </header>
+
+      <section class="stage" aria-live="polite">
+        <article id="slide" class="slide">
+          <div class="eyebrow" id="slide-eyebrow">Announcement</div>
+          <h2 id="slide-title" class="slide-title"></h2>
+          <p id="slide-body" class="slide-body"></p>
+        </article>
+      </section>
+
+      <footer class="footer">
+        <div id="dots" class="dots" aria-hidden="true"></div>
+        <div id="footer-note" class="footer-note"></div>
+        <div id="progress" class="progress"><span id="progress-bar"></span></div>
+      </footer>
+    </main>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>

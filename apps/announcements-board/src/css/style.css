@@ -1,0 +1,163 @@
+/*
+ * Announcements Board — styling. Same calm, dignified design language as the
+ * rest of OpenMasjid: deep night-sky green base, emerald primary, gold accent.
+ */
+:root {
+  --bg: #0e1814;
+  --bg-elev: #14211c;
+  --surface: #1a2a24;
+  --primary: #1fa37a;
+  --primary-soft: #2bbf90;
+  --gold: #d4af37;
+  --gold-soft: #e6c768;
+  --text: #eaf3ee;
+  --text-dim: #9db5aa;
+  --text-faint: #5f786d;
+  --border: rgba(255, 255, 255, 0.06);
+  --font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+
+body {
+  font-family: var(--font-ui);
+  color: var(--text);
+  background: radial-gradient(120% 90% at 50% -10%, #16271f 0%, var(--bg) 55%) fixed;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.pattern {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image:
+    repeating-linear-gradient(45deg, rgba(31, 163, 122, 0.05) 0 2px, transparent 2px 28px),
+    repeating-linear-gradient(-45deg, rgba(31, 163, 122, 0.05) 0 2px, transparent 2px 28px);
+  mask-image: radial-gradient(110% 110% at 50% 30%, #000 40%, transparent 100%);
+}
+
+.board {
+  position: relative;
+  z-index: 1;
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: clamp(10px, 2vh, 24px);
+  padding: clamp(20px, 3.5vw, 56px);
+}
+
+/* --- Masthead ------------------------------------------------------------- */
+.masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: clamp(10px, 1.6vh, 22px);
+}
+
+.brand { display: flex; align-items: center; gap: clamp(10px, 1.4vw, 20px); color: var(--primary); }
+.brand .mark {
+  width: clamp(34px, 4vw, 56px);
+  height: clamp(34px, 4vw, 56px);
+  filter: drop-shadow(0 0 14px rgba(31, 163, 122, 0.35));
+}
+.masjid-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--text);
+  font-size: clamp(1.5rem, 3vw, 2.8rem);
+}
+.clock-wrap { text-align: end; }
+.clock {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  color: var(--gold-soft);
+  font-size: clamp(1.4rem, 3vw, 2.6rem);
+  line-height: 1.05;
+}
+.today { color: var(--text-dim); font-size: clamp(0.85rem, 1.2vw, 1.15rem); margin-top: 2px; }
+
+/* --- Stage / slide -------------------------------------------------------- */
+.stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow: hidden;
+}
+
+.slide {
+  max-width: 26ch;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(12px, 2.4vh, 30px);
+  align-items: center;
+}
+.slide.entering { animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.slide.leaving { opacity: 0; transform: translateY(-18px); transition: opacity 0.3s ease, transform 0.3s ease; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.eyebrow {
+  color: var(--primary-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-weight: 600;
+  font-size: clamp(0.75rem, 1.2vw, 1rem);
+}
+.slide-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.08;
+  font-size: clamp(2.2rem, 7vw, 6rem);
+  background: linear-gradient(180deg, var(--text) 0%, #c8ddd2 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.slide-body {
+  color: var(--text-dim);
+  line-height: 1.5;
+  font-size: clamp(1.1rem, 2.6vw, 2.4rem);
+  max-width: 30ch;
+}
+
+/* --- Footer --------------------------------------------------------------- */
+.footer {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: clamp(10px, 1.4vh, 18px);
+}
+.dots { display: flex; gap: 10px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-faint); opacity: 0.5; transition: all 0.3s ease; }
+.dot.is-active { background: var(--gold); opacity: 1; transform: scale(1.25); box-shadow: 0 0 12px var(--gold); }
+.footer-note { text-align: center; color: var(--text-dim); font-size: clamp(0.85rem, 1.4vw, 1.3rem); }
+.progress {
+  justify-self: end;
+  width: clamp(80px, 14vw, 220px);
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.progress span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--primary), var(--primary-soft)); }
+
+/* --- Reduced motion ------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+  .slide.entering { opacity: 1; transform: none; }
+  .progress { display: none; }
+}

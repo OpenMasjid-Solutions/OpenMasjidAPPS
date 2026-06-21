@@ -24,6 +24,15 @@ app repos (one per app) ──listed in──▶ registry.yaml ──build──
 - The platform installs an app by running its `compose` as `docker compose -p omos-<id> up -d`,
   injecting the user's answers to the app's `settings` as environment variables.
 
+## The OpenMasjidOS Fabric (optional)
+
+Apps can plug into the **OpenMasjidOS Fabric** — the platform↔app integration layer (unified
+appearance + single sign-on / API). With no opt-in, an app already inherits the dashboard's theme and
+wallpaper when opened; adding `sso: true` to its `manifest.yaml` lets it share the dashboard login
+(the platform issues each such app a per-app secret and binds session checks to it). It's optional,
+backwards-compatible, and never carries masjid data. See
+[docs/BUILDING_AN_APP.md §7](./docs/BUILDING_AN_APP.md).
+
 ## Adding an app
 
 1. Build your app in its **own repo** — see [docs/BUILDING_AN_APP.md](./docs/BUILDING_AN_APP.md).

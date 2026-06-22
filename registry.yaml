@@ -21,7 +21,7 @@
 apps:
   - id: display
     repo: hasan-ismail/OpenMasjidDisplay
-    ref: v0.18.1
+    ref: v0.19.0
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: hasan-ismail/openmasjid-prayer-times-display

@@ -22,14 +22,24 @@ const REGISTRY = 'registry.yaml';
 const APP_ID_RE = /^[a-z0-9][a-z0-9-]{0,79}$/;
 const CATEGORIES = new Set(['displays', 'donations', 'community', 'quran', 'admin', 'utilities']);
 
-// Compose directives we refuse to publish. The platform also warns on these, but
-// the catalog should never ship a stack that asks for host-level privilege.
+// Compose directives we refuse to publish. These mirror the platform's install-
+// time risk-check (OpenMasjidOS apps/compose-validate.ts): since v0.19.2 the
+// platform REFUSES to install a catalog app whose compose trips any of these, so
+// we reject them at PR time to keep "passes the catalog build" === "installs".
 const DANGEROUS = [
   { re: /\bprivileged:\s*true\b/, why: 'privileged: true' },
   { re: /\bnetwork_mode:\s*["']?host\b/, why: 'network_mode: host' },
   { re: /\bpid:\s*["']?host\b/, why: 'pid: host' },
   { re: /\bipc:\s*["']?host\b/, why: 'ipc: host' },
+  { re: /\buserns_mode:\s*["']?host\b/, why: 'userns_mode: host' },
+  { re: /\bcgroup:\s*["']?host\b/, why: 'cgroup: host' },
+  { re: /\buts:\s*["']?host\b/, why: 'uts: host' },
   { re: /\bcap_add\s*:/, why: 'cap_add' },
+  { re: /\bdevices\s*:/, why: 'devices (host device passthrough)' },
+  { re: /\bdevice_cgroup_rules\s*:/, why: 'device_cgroup_rules' },
+  { re: /\bunconfined\b/i, why: 'security_opt: unconfined' },
+  { re: /\bextends\s*:/, why: 'extends (merges unseen config)' },
+  { re: /^\s*include\s*:/m, why: 'include (merges unseen config)' },
   { re: /\/var\/run\/docker\.sock/, why: 'mounting the Docker socket' },
 ];
 

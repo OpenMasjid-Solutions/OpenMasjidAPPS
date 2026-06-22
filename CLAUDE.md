@@ -142,9 +142,15 @@ apps:
   port (≥ 1024). Conflicts are handled by the platform; don't depend on a specific host port.
 - **Reference settings as `${KEY}`** and pass them in via an `environment:` block.
 - **Use named volumes** for any persistence (portable + clean).
-- **Least privilege.** The catalog build **rejects** a compose containing `privileged: true`,
-  `network_mode: host`, `pid: host`, `ipc: host`, `cap_add`, or a Docker-socket mount
-  (`/var/run/docker.sock`). Don't request host devices or sensitive host paths either.
+- **Least privilege.** Both the catalog build AND the platform (at install, since OpenMasjidOS
+  v0.19.2) **reject** a compose that asks for powerful host access — so an app that needs any of the
+  following simply won't install. Avoid: `privileged: true`; any host namespace (`network_mode: host`,
+  `pid: host`, `ipc: host`, `userns_mode: host`, `cgroup: host`, `uts: host`); `cap_add`, `devices`,
+  `device_cgroup_rules`, `security_opt: …unconfined`, `group_add` of root/docker; mounting the Docker
+  socket (`/var/run/docker.sock`), any sensitive host path (`/etc`, `/root`, `/var`, `/`, …) or a path
+  that escapes the app folder (`..`); and `extends:` / `include:` (they merge config the check can't
+  see). Use **named volumes** for data and pass settings via `environment:` — that's all a masjid app
+  needs.
 - **No discovery labels** (`com.docker.compose.project` / `com.openmasjid.*` are platform-internal).
 - **No reliance on a masjid profile** — collect everything via `settings`.
 - Multi-service stacks (app + db) are fine; all run under the one `omos-<id>` project.
@@ -290,7 +296,8 @@ Exactly one of: `displays`, `donations`, `community`, `quran`, `admin`, `utiliti
 
 **Security**
 - Apps run as separate Docker containers the platform manages at arm's length. Keep them
-  self-contained and least-privilege (§4C); the catalog build refuses dangerous composes.
+  self-contained and least-privilege (§4C); **both the catalog build and the platform (at install)
+  refuse dangerous composes** — see the §4 least-privilege list for the full set.
 - Pin image versions; prefer trusted/official base images; don't fetch-and-run arbitrary remote
   scripts at container start.
 

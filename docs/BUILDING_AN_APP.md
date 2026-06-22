@@ -47,8 +47,12 @@ drive it via `settings`.
   registry entry).
 - The compose **pins** its image tag and **publishes** the web port.
 - The compose references settings as `${KEY}` and passes them via `environment:`.
-- **Least privilege:** no `privileged`, `network_mode: host`, `pid/ipc: host`, `cap_add`, host
-  devices, or Docker-socket mounts. (The catalog build rejects these.)
+- **Least privilege:** no `privileged`; no host namespace (`network_mode: host`, `pid: host`,
+  `ipc: host`, `userns_mode: host`, `cgroup: host`, `uts: host`); no `cap_add`, `devices`,
+  `device_cgroup_rules`, `security_opt: …unconfined`, or `group_add` of root/docker; no Docker-socket
+  or sensitive host-path mount (and no `..` escaping the app folder); no `extends:`/`include:`.
+  Rejected by **both** the catalog build and the platform at install — an app needing these won't
+  install, so use named volumes + `environment:` instead.
 - The image is **public** and **multi-arch** (`linux/amd64,linux/arm64`).
 - All masjid-specific values come from `settings` — the platform injects **no** masjid profile.
 - Settings values are **single-line** (they become `KEY=VALUE` lines in a `.env`).
@@ -243,7 +247,8 @@ store.
 - [ ] `manifest.yaml` has `name`, `version` (semver), valid `category`; `icon`/`screenshots` are
       repo-relative paths.
 - [ ] `docker-compose.yml` pins the image, publishes the web port, uses `${KEY}` settings, named
-      volumes, **no** privileged/host/socket access, **no** discovery labels.
+      volumes, **no** privileged / host-namespace / device / socket / sensitive-mount access,
+      **no** `extends`/`include`, **no** discovery labels. (Rejected at build AND at install.)
 - [ ] Image is **public** on GHCR and **multi-arch** (amd64 + arm64).
 - [ ] All masjid-specific values are in `settings`; values are single-line.
 - [ ] Friendly, plain wording; looks good full-screen if it's a display app; honors

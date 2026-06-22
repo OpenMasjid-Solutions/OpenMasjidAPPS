@@ -116,9 +116,11 @@ for (const entry of entries) {
     description: m.description,
     settings: m.settings,
     ports: m.ports,
-    // Opt-in OpenMasjidOS Fabric single sign-on. Carried through so the platform
-    // issues the app a per-app secret at install and honours its /api/auth/session calls.
+    // Opt-in OpenMasjidOS Fabric capabilities. Carried through so the platform
+    // issues the app a per-app secret at install and honours the matching calls
+    // (sso → /api/auth/session, notifications → /api/fabric/notify).
     sso: m.sso === true ? true : undefined,
+    notifications: m.notifications === true ? true : undefined,
     compose: composeText,
   });
   console.log(`✓ ${id} ← ${repo}@${ref}`);

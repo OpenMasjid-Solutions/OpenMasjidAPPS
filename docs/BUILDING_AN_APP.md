@@ -202,6 +202,23 @@ Rules:
 - Same-host only (plain-HTTP LAN, `SameSite=Strict`). If your app ever runs cross-host, this must be
   HTTPS.
 
+**Notifications — opt in with `notifications: true`.** Let your app alert the masjid through the
+admin's configured webhook (Slack / Discord / generic). The admin sets the destination once in
+**Settings → Notifications**; your app **never sees the URL**. From your **backend**, post your
+per-app secret:
+
+```
+POST ${OPENMASJID_BASE_URL}/api/fabric/notify
+  X-OpenMasjid-App-Secret: <OPENMASJID_APP_SECRET>
+  Content-Type: application/json
+  { "text": "A new donation was received.", "title": "Donation", "level": "success" }
+→ 200 { "delivered": true }   |   { "delivered": false, "reason": "disabled" | "rate_limited" | … }
+```
+
+`text` is required; `title` and `level` (`info`/`success`/`warning`/`error`) are optional. It's
+rate-limited per app and **fails soft** (`delivered:false` when the admin hasn't enabled
+notifications), so treat it as best-effort and never depend on it — your app must work without it.
+
 ---
 
 ## 8. Get listed in the catalog

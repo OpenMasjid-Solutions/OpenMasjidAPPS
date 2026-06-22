@@ -78,6 +78,7 @@ OpenMasjidOS repo.**
    | `settings` | – | Array of fields the user fills in before install (see §7). |
    | `ports` | – | Array of `{ container: number, label?: string }` — informational. |
    | `sso` | – | `true` to opt into single sign-on (§7b). The platform then issues the app a per-app secret at install and honours its `/api/auth/session` calls. Omit/false = no SSO. |
+   | `notifications` | – | `true` to opt into Fabric notifications (§7b) — the app may POST `/api/fabric/notify` to relay messages to the masjid's configured webhook (Slack/Discord/generic). Omit/false = no notifications. |
 
 4. **Install mechanics** (from `packages/core/src/apps/manager.ts`): on install the platform
    writes the `compose` string to `compose.yml`, writes the user's `settings` answers to a `.env`,
@@ -253,7 +254,21 @@ GET ${OPENMASJID_BASE_URL}/api/auth/session
 
 It **fails closed**, is **not** CORS-enabled, and returns `false` without a valid secret. Apps must
 treat `username` as untrusted display text, cache positives briefly (~45 s), cap the minted session
-(~1 h), and always fall back to their own login when the platform is absent. Full normative contract:
+(~1 h), and always fall back to their own login when the platform is absent.
+
+**Notifications** (`notifications: true`). An app may relay a message to the masjid's configured
+webhook (Slack/Discord/generic) — the admin sets the destination once in Settings; the app **never
+sees the URL**. The app's backend posts with its secret:
+
+```
+POST ${OPENMASJID_BASE_URL}/api/fabric/notify
+  X-OpenMasjid-App-Secret: <OPENMASJID_APP_SECRET>
+  { "text": "...", "title": "optional", "level": "info|success|warning|error" }
+→ { "delivered": true }  |  { "delivered": false, "reason": "disabled|rate_limited|…" }
+```
+
+Requires the notifications capability, is rate-limited per app, and fails soft (returns
+`delivered:false` when notifications are off) — so the app keeps working regardless. Full normative contract:
 [`docs/BUILDING_AN_APP.md` §7](docs/BUILDING_AN_APP.md) + the platform's `docs/APP_MANIFEST_SPEC.md`.
 This must stay in lock-step with the platform — if it changes there, change it here too.
 

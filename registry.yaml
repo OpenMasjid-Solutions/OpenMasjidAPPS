@@ -29,3 +29,20 @@ apps:
   # - id: announcements-board
   #   repo: hasan-ismail/openmasjid-announcements-board
   #   ref: v1.0.0
+
+# Coming-soon teasers — apps that aren't released yet (no repo/image). They show
+# in the App Store with a "Coming soon" badge and can't be installed. Metadata
+# only here; when one ships, give it a repo + tag and move it up into `apps:`.
+coming_soon:
+  - id: kiosk
+    name: OpenMasjid Kiosk
+    tagline: An interactive lobby kiosk — prayer times, announcements and info on a touchscreen.
+    category: displays
+  - id: donations
+    name: OpenMasjid Donations
+    tagline: A simple, provider-agnostic donation page — collect and track giving.
+    category: donations
+  - id: student-manager
+    name: OpenMasjid Student Manager
+    tagline: Run your madrasah — students, classes, attendance and progress.
+    category: admin

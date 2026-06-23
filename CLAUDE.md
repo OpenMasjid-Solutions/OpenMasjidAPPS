@@ -81,6 +81,7 @@ OpenMasjidOS repo.**
    | `ports` | – | Array of `{ container: number, label?: string }` — informational. |
    | `sso` | – | `true` to opt into single sign-on (§7b). The platform then issues the app a per-app secret at install and honours its `/api/auth/session` calls. Omit/false = no SSO. |
    | `notifications` | – | `true` to opt into Fabric notifications (§7b) — the app may POST `/api/fabric/notify` to relay messages to the masjid's configured webhook (Slack/Discord/generic). Omit/false = no notifications. |
+   | `comingSoon` | – | Set by the registry's `coming_soon:` list, **not** by app authors. Marks a teaser entry with no repo/compose; the App Store shows a "Coming soon" badge and won't install it. |
 
 4. **Install mechanics** (from `packages/core/src/apps/manager.ts`): on install the platform
    writes the `compose` string to `compose.yml`, writes the user's `settings` answers to a `.env`,
@@ -115,6 +116,10 @@ apps:
   means the catalog follows that branch (the daily CI rebuild picks up changes).
 - `id` must be unique, kebab-case, and equal to the app's `manifest.yaml` `id`.
 - To add an app: open a PR adding an entry. CI regenerates and commits `catalog.json`.
+- **Coming-soon teasers:** a separate top-level `coming_soon:` list holds apps that aren't released
+  yet — inline metadata only (`id`, `name`, `tagline`, `category`), **no repo**. The build emits them
+  with `comingSoon: true`; the App Store shows a "Coming soon" badge and won't install them. When one
+  ships, give it a repo + tag and move it up into `apps:`.
 
 ---
 

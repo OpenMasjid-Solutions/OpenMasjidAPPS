@@ -136,6 +136,22 @@ for (const entry of entries) {
   console.log(`✓ ${id} ← ${repo}@${ref}`);
 }
 
+// Coming-soon teasers — metadata only, no repo/compose. The platform renders
+// these with a "Coming soon" badge and refuses to install them.
+const comingSoon = Array.isArray(registry.coming_soon) ? registry.coming_soon : [];
+for (const entry of comingSoon) {
+  const { id, name, tagline, category, description, icon } = entry || {};
+  if (!id || !name) fail(`coming_soon entry is missing "id" or "name": ${JSON.stringify(entry)}`);
+  if (!APP_ID_RE.test(id)) fail(`${id}: invalid coming_soon id — use kebab-case (a-z, 0-9, -), max 80 chars`);
+  if (seen.has(id)) fail(`duplicate id (coming_soon vs apps): ${id}`);
+  seen.add(id);
+  if (category && !CATEGORIES.has(category)) {
+    fail(`${id}: unknown category "${category}" (use: ${[...CATEGORIES].join(', ')})`);
+  }
+  apps.push({ id, name, tagline, category, description, icon, comingSoon: true });
+  console.log(`✓ ${id} (coming soon)`);
+}
+
 apps.sort((a, b) => a.name.localeCompare(b.name));
 // Drop undefined keys for a tidy catalog.
 const clean = apps.map((a) => JSON.parse(JSON.stringify(a)));

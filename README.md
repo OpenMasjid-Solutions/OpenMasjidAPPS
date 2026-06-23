@@ -7,7 +7,8 @@ This repo is a **catalog only**. It does **not** hold app source code. Each app 
 repository**; this repo keeps a [`registry.yaml`](./registry.yaml) of those repos and generates the
 single [`catalog.json`](./catalog.json) the platform fetches to populate its App Store.
 
-> Building an app? Read **[docs/BUILDING_AN_APP.md](./docs/BUILDING_AN_APP.md)** (hands-on) and
+> Building an app? Read **[docs/BUILDING_AN_APP.md](./docs/BUILDING_AN_APP.md)** (hands-on),
+> **[docs/DESIGN.md](./docs/DESIGN.md)** (the full UI/UX design language every app should match), and
 > **[CLAUDE.md](./CLAUDE.md)** (the authoritative contract).
 
 ## How it works

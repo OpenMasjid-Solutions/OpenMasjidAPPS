@@ -35,6 +35,8 @@ populate its App Store.
 - `examples/` — complete, working **reference apps** you copy into a new repo to start. They are
   **not** part of the catalog (the registry is); they are templates/documentation only.
 - `docs/BUILDING_AN_APP.md` — the hands-on guide for building a compatible app repo.
+- `docs/DESIGN.md` — the full UI/UX design language (Sakīna Glass tokens, motion, dock, components)
+  every app should match so it looks native to OpenMasjidOS.
 
 ### What this repo does NOT contain
 Live app source, Dockerfiles for shipped apps, or per-app image CI. **Those live in each app's own
@@ -313,6 +315,10 @@ Exactly one of: `displays`, `donations`, `community`, `quran`, `admin`, `utiliti
 ---
 
 ## 11. Quality bar for apps
+- **Match the OpenMasjidOS design language** — see **[`docs/DESIGN.md`](docs/DESIGN.md)**: the Sakīna
+  Glass material, color tokens (dark default + light), spring motion, the dock, components, RTL, and
+  voice. Prefer inheriting the live appearance via the Fabric (§7b) so the app tracks the dashboard;
+  otherwise drop in the tokens from DESIGN.md. An app should feel native, not bolted-on.
 - For **masjid volunteers**, not sysadmins. After install an app should "just work" with the
   settings collected up front. Friendly, plain wording in the app's own UI.
 - Display-type apps (prayer clocks, boards) should look good full-screen on a TV.
@@ -333,6 +339,7 @@ OpenMasjidAPPS/
 ├── package.json                   # dev dep: yaml; "build" → build-catalog
 ├── scripts/build-catalog.mjs      # registry → catalog.json (fetches app repos)
 ├── docs/BUILDING_AN_APP.md        # hands-on guide for building a compatible app repo
+├── docs/DESIGN.md                 # the full UI/UX design language every app should match
 ├── examples/                      # complete reference apps to copy into a new repo (NOT catalogued)
 │   ├── prayer-times-display/
 │   └── announcements-board/

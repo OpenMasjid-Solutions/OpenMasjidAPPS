@@ -14,6 +14,11 @@ The fastest start: **copy a folder from [`../examples/`](../examples/) into your
 and adapt it. The two examples (`prayer-times-display`, `announcements-board`) are complete and
 working.
 
+> **Make it look native.** Every app should match the OpenMasjidOS look — the **Sakīna Glass**
+> material, color tokens (dark + light), motion, the dock, and voice. The full spec is in
+> **[DESIGN.md](./DESIGN.md)** (copy-paste tokens + recipes). The easiest path: inherit the live
+> appearance via the Fabric (§7) and drop in the tokens from DESIGN.md.
+
 ---
 
 ## 1. Repository layout
@@ -282,6 +287,8 @@ store.
 - [ ] All masjid-specific values are in `settings`; values are single-line.
 - [ ] Friendly, plain wording; looks good full-screen if it's a display app; honors
       `prefers-reduced-motion`; works LTR and RTL.
+- [ ] Matches the OpenMasjidOS design language ([DESIGN.md](./DESIGN.md)) — Sakīna Glass tokens,
+      dark + light themes, spring motion, and (ideally) inherits appearance via the Fabric.
 - [ ] Installs and **opens cleanly on a real OpenMasjidOS instance** with only the settings
       collected at install time.
 - [ ] If using `sso`/`notifications`: your compose `environment:` **references** `${OPENMASJID_BASE_URL}`,

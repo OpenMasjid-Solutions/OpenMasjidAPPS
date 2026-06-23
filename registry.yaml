@@ -36,8 +36,8 @@ apps:
 coming_soon:
   - id: kiosk
     name: OpenMasjid Kiosk
-    tagline: An interactive lobby kiosk — prayer times, announcements and info on a touchscreen.
-    category: displays
+    tagline: A donation kiosk for an Android tablet — collect card donations via Stripe. Just a donation panel, nothing else.
+    category: donations
   - id: donations
     name: OpenMasjid Donations
     tagline: A simple, provider-agnostic donation page — collect and track giving.

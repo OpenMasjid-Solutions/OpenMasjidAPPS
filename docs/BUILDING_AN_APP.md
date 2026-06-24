@@ -292,8 +292,14 @@ Rules:
 - Cache a positive result briefly (~45 s) and cap the session you mint (~1 h) so a logged-out admin
   doesn't linger. **Always** fall back to your own login when the base URL/secret is unset, the cookie
   is absent, or the platform says `false` — so your app still works standalone.
-- Same-host only (plain-HTTP LAN, `SameSite=Strict`). If your app ever runs cross-host, this must be
-  HTTPS.
+- **Read the cookie from the request that LOADS your app** (the admin's "Open" click). The session
+  cookie is `SameSite=Lax`, so it rides that top-level navigation even though the dashboard is HTTPS and
+  your app is HTTP (a cross-scheme = cross-site nav). Don't depend on a reload to make SSO work — read
+  it on first load. If your app sets up its own session afterward, do the SSO check on that first
+  request so a returning admin is signed in immediately.
+- Same-host (the platform serves your app on the LAN). The session cookie is `SameSite=Lax`, non-Secure
+  so it reaches an HTTP app. If your app ever runs cross-host from the platform, use an `https://`
+  `OPENMASJID_BASE_URL` so the forwarded cookie + your secret aren't sent in cleartext.
 
 **Notifications — opt in with `notifications: true`.** Let your app alert the masjid through the
 admin's configured webhook (Slack / Discord / generic). The admin sets the destination once in

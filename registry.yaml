@@ -31,7 +31,8 @@
 apps:
   - id: display
     repo: hasan-ismail/OpenMasjidDisplay
-    ref: v0.20.6
+    ref: v0.20.7                                 # human-readable tag; commit (below) is the immutable pin
+    commit: e38b8f76faf6fbcbdb6497ed53aa3327ac90b2f2
   - id: donations
     repo: hasan-ismail/OpenMasjidDonations
     ref: v0.2.1                                  # human-readable tag; commit (below) is the immutable pin

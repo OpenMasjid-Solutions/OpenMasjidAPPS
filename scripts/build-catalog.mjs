@@ -200,6 +200,9 @@ for (const entry of entries) {
     // (sso → /api/auth/session, notifications → /api/fabric/notify).
     sso: m.sso === true ? true : undefined,
     notifications: m.notifications === true ? true : undefined,
+    // Require HTTPS — set ONLY by apps that use Stripe (they need a secure
+    // context). The platform serves such an app on a dedicated HTTPS port.
+    https: m.https === true ? true : undefined,
     compose: composeText,
   });
   console.log(`✓ ${id} ← ${repo}@${fetchRef}${immutable ? '' : ' (mutable ref)'}`);
@@ -209,7 +212,7 @@ for (const entry of entries) {
 // these with a "Coming soon" badge and refuses to install them.
 const comingSoon = Array.isArray(registry.coming_soon) ? registry.coming_soon : [];
 for (const entry of comingSoon) {
-  const { id, name, tagline, category, description, icon } = entry || {};
+  const { id, name, tagline, category, description, icon, https } = entry || {};
   if (!id || !name) fail(`coming_soon entry is missing "id" or "name": ${JSON.stringify(entry)}`);
   if (!APP_ID_RE.test(id)) fail(`${id}: invalid coming_soon id — use kebab-case (a-z, 0-9, -), max 80 chars`);
   if (seen.has(id)) fail(`duplicate id (coming_soon vs apps): ${id}`);
@@ -217,7 +220,7 @@ for (const entry of comingSoon) {
   if (category && !CATEGORIES.has(category)) {
     fail(`${id}: unknown category "${category}" (use: ${[...CATEGORIES].join(', ')})`);
   }
-  apps.push({ id, name, tagline, category, description, icon, comingSoon: true });
+  apps.push({ id, name, tagline, category, description, icon, https: https === true ? true : undefined, comingSoon: true });
   console.log(`✓ ${id} (coming soon)`);
 }
 

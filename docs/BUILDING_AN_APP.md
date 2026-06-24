@@ -103,6 +103,16 @@ auto-published `catalog.json`. These rules keep that supply chain safe. The cata
    build rejects them at PR time) — so an app that needs them simply won't install. Use **named
    volumes** + `environment:` instead (see §4).
 
+5. **HTTPS is required ONLY if your app uses Stripe.** Stripe's in-person M2 reader (Stripe Terminal
+   SDK) and in-page card fields (Elements) require a browser **secure context** (HTTPS). If — and only
+   if — your app uses Stripe, set **`https: true`** in `manifest.yaml`. The platform then serves your
+   app over HTTPS on a dedicated port (it terminates TLS with the dashboard's certificate) and offers
+   it to the admin as an `https://` URL. Your container itself stays a normal **HTTP** server — you do
+   **not** handle TLS, ports, or certificates; just publish your web port as usual and the platform
+   does the rest. **Every non-Stripe app must NOT set `https`** — those stay on plain HTTP, which is
+   correct for a trusted LAN. (Tip: prefer Stripe-hosted **Checkout / Payment Links** where you can —
+   card entry then happens on stripe.com — but the in-person reader still requires `https: true`.)
+
 See also the SSO/notifications contract in [§7](#7-openmasjidos-fabric--appearance-single-sign-on--notifications-optional)
 and the platform's [`docs/APP_MANIFEST_SPEC.md`](https://github.com/hasan-ismail/OpenMasjidOS/blob/master/docs/APP_MANIFEST_SPEC.md).
 
@@ -137,6 +147,7 @@ ports:
   - container: 80
     label: Web interface
 # sso: true                         # OPTIONAL — opt into single sign-on (see §7)
+# https: true                       # ONLY if your app uses Stripe (needs HTTPS) — see §2b.5
 ```
 
 Field types: `text` | `number` | `password` | `boolean` | `select` (needs `options`). Use

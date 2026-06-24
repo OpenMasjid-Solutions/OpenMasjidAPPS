@@ -36,7 +36,7 @@ apps:
   - id: donations
     repo: hasan-ismail/OpenMasjidDonations
     ref: v0.4.0                                  # release line; commit (below) is the immutable pin (adds the @sha256 image digest)
-    commit: 9c3e5c33a65d1536bc1b92ebe72944fcbb966168
+    commit: 937e37e6e0e817631e973e25c8fd283e3b00c185
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: hasan-ismail/openmasjid-prayer-times-display
@@ -53,6 +53,7 @@ coming_soon:
     name: OpenMasjid Kiosk
     tagline: An Android-tablet donation kiosk — take in-person card donations with a Stripe M2 card reader.
     category: donations
+    https: true                                  # uses Stripe (M2 reader) → must be served over HTTPS
   - id: student-manager
     name: OpenMasjid Student Manager
     tagline: Run your madrasah — students, classes, attendance and progress.

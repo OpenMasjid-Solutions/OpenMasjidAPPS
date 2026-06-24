@@ -64,6 +64,50 @@ drive it via `settings`.
 
 ---
 
+## 2b. Security requirements
+
+Your app runs on a masjid's own machine and reaches every OpenMasjidOS install through the
+auto-published `catalog.json`. These rules keep that supply chain safe. The catalog build prints a
+**⚠ warning** when an app trips items 1; the platform's install-time consent gate enforces item 4.
+
+1. **Digest-pin your published image.** Pin the **digest**, not just the tag — a tag can be moved to
+   repoint at a *different* (backdoored) image even though the version string looks unchanged. Append
+   `@sha256:<digest>` to the image reference in your `docker-compose.yml`:
+   ```yaml
+   services:
+     app:
+       # tag for humans + digest for integrity (the digest is what actually pins)
+       image: ghcr.io/<owner>/openmasjid-my-app:1.0.0@sha256:1f2e…<64 hex>
+   ```
+   Get the digest after pushing with `docker buildx imagetools inspect ghcr.io/<owner>/openmasjid-my-app:1.0.0`
+   (or read it from the GHCR package page). Bump both the tag and the digest on every release.
+   *(Likewise, ask the catalog maintainer to pin your registry entry to an immutable `commit:` SHA, not
+   a movable tag — see [`../registry.yaml`](../registry.yaml).)*
+
+2. **Treat any Fabric SSO/session value as an IDENTITY assertion, never a credential.** The Fabric
+   answer to *"is the current viewer the platform admin?"* is the **only** thing it tells you. Never
+   use the session cookie, `OPENMASJID_APP_SECRET`, or any platform-provided value to call the
+   platform's admin / tRPC API on the admin's behalf. The platform binds the dashboard to an
+   origin-bound CSRF key, so your app **physically cannot act as the admin** even if it observes the
+   session cookie — design accordingly: use the session check to gate *your own* features, nothing more.
+
+3. **Use `https://` for cross-host deployments.** On the default trusted LAN, plain `http` is fine. But
+   if your app ever runs on a *different host* from the platform, set an `https://` `OPENMASJID_BASE_URL`
+   so your app's `OPENMASJID_APP_SECRET` and the forwarded session cookie are **not sent in cleartext**.
+   Never downgrade an `https` base URL to `http`.
+
+4. **Least-privilege compose (no exceptions).** No `privileged`; no host namespaces
+   (`network_mode: host`, `pid: host`, `ipc: host`, …); no Docker-socket mount
+   (`/var/run/docker.sock`); no sensitive host bind-mounts (`/etc`, `/root`, `/var`, `/`, or any `..`
+   escape). The platform's consent gate **refuses or hard-warns** on these at install (and the catalog
+   build rejects them at PR time) — so an app that needs them simply won't install. Use **named
+   volumes** + `environment:` instead (see §4).
+
+See also the SSO/notifications contract in [§7](#7-openmasjidos-fabric--appearance-single-sign-on--notifications-optional)
+and the platform's [`docs/APP_MANIFEST_SPEC.md`](https://github.com/hasan-ismail/OpenMasjidOS/blob/master/docs/APP_MANIFEST_SPEC.md).
+
+---
+
 ## 3. `manifest.yaml` template
 
 ```yaml
@@ -106,7 +150,9 @@ to absolute URLs.
 ```yaml
 services:
   app:
-    image: ghcr.io/<owner>/openmasjid-my-app:1.0.0   # PINNED, public, matches your repo name
+    # PINNED (tag + digest), public, matches your repo name. The @sha256 digest is
+    # the real integrity pin — a moved tag must not repoint it (see §2b.1).
+    image: ghcr.io/<owner>/openmasjid-my-app:1.0.0@sha256:<64 hex digest>
     restart: unless-stopped
     environment:
       MASJID_NAME: ${MASJID_NAME}
@@ -212,8 +258,10 @@ compose* immediately below):
 > injected values never reach your app and SSO/notifications silently no-op** (this is the exact trap
 > that left OpenMasjid Display non-functional for several releases).
 
-To check whether the current visitor is the signed-in OpenMasjidOS admin, your **backend**
-(server→server, never from the browser) calls:
+The session check answers exactly one question — *"is this viewer the platform admin?"* — and is an
+**identity assertion, not a credential** (see §2b.2): use it to gate your own features, never to call
+the platform's admin API as the admin. To check, your **backend** (server→server, never from the
+browser) calls:
 
 ```
 GET ${OPENMASJID_BASE_URL}/api/auth/session
@@ -283,6 +331,9 @@ store.
 - [ ] `docker-compose.yml` pins the image, publishes the web port, uses `${KEY}` settings, named
       volumes, **no** privileged / host-namespace / device / socket / sensitive-mount access,
       **no** `extends`/`include`, **no** discovery labels. (Rejected at build AND at install.)
+- [ ] Image is **digest-pinned** (`@sha256:…`), not just tagged, so a moved tag can't repoint it (§2b.1).
+- [ ] Fabric SSO/session is used **only** as an identity check, never as a credential to call the
+      platform API; `OPENMASJID_BASE_URL` is `https://` for any cross-host deployment (§2b.2–3).
 - [ ] Image is **public** on GHCR and **multi-arch** (amd64 + arm64).
 - [ ] All masjid-specific values are in `settings`; values are single-line.
 - [ ] Friendly, plain wording; looks good full-screen if it's a display app; honors

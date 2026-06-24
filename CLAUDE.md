@@ -308,6 +308,20 @@ Exactly one of: `displays`, `donations`, `community`, `quran`, `admin`, `utiliti
 - Pin image versions; prefer trusted/official base images; don't fetch-and-run arbitrary remote
   scripts at container start.
 
+**Supply-chain hardening (app authors — full version in `docs/BUILDING_AN_APP.md` §2b):**
+- **Digest-pin the image** with `@sha256:…` in the compose — pinning the tag alone is not enough,
+  because a tag can be moved to repoint at a different (backdoored) image.
+- **Pin registry entries to an immutable `commit:` SHA**, not a mutable tag/branch — a moved ref can
+  smuggle backdoored content through the unattended daily rebuild. The build prints a ⚠ warning for
+  any mutable ref or non-digest image (it warns, it does not fail).
+- **Treat any Fabric SSO/session value as an IDENTITY assertion** ("is the viewer the platform
+  admin?") — never as a credential to call the platform's admin/tRPC API. The platform enforces an
+  origin-bound dashboard CSRF key, so an app cannot act as the admin even if it sees the session cookie.
+- **Use an `https://` `OPENMASJID_BASE_URL` for cross-host deployments** so the per-app secret isn't
+  sent in cleartext (plain `http` is fine on the default trusted LAN).
+- **Least-privilege compose:** no `privileged`, host namespaces, Docker-socket mount, or sensitive
+  host bind-mounts — the platform's consent gate flags these and refuses/warns.
+
 **Licensing**
 - **This catalog repo** (tooling, registry, examples scaffolding) is **AGPL-3.0** — see `LICENSE`.
 - **Each app** carries **its own license** (the manifest `license` field). Because apps run as

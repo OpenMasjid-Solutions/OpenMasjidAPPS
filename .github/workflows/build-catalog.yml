@@ -37,6 +37,13 @@ jobs:
 
       - run: npm run build
 
+      # This step auto-commits and pushes catalog.json with no human review (cron +
+      # repository_dispatch run unattended). That makes the registry pins the only
+      # integrity control: an entry pinned to a mutable tag/branch can be moved to
+      # backdoored content and republished here within ~24h. Pin each entry to an
+      # immutable 40-char commit SHA (registry.yaml "commit:"), and require apps to
+      # digest-pin their images (@sha256:…). The build prints ⚠ warnings for any
+      # mutable ref or non-digest image; treat those as review signals.
       - name: Commit regenerated catalog.json
         run: |
           git config user.name "github-actions[bot]"

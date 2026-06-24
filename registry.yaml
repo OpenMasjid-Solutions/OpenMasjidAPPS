@@ -8,10 +8,20 @@
 #
 # To list an app, open a PR adding an entry below. Each entry:
 #
-#   - id:   <app-id>                 # kebab-case, must equal the app's manifest id
-#     repo: <owner>/<repo>           # the app's own GitHub repository
-#     ref:  v1.0.0                   # a git TAG (recommended) or branch to pin to
-#     path: subdir                   # OPTIONAL — if manifest.yaml isn't at the repo root
+#   - id:     <app-id>               # kebab-case, must equal the app's manifest id
+#     repo:   <owner>/<repo>         # the app's own GitHub repository
+#     commit: <40-char SHA>          # RECOMMENDED — an immutable commit SHA pin
+#     ref:    v1.0.0                 # a git TAG or branch (MUTABLE — can be moved)
+#     path:   subdir                 # OPTIONAL — if manifest.yaml isn't at the repo root
+#
+# Pin to a `commit:` (a full 40-char hex commit SHA) for security. Tags and
+# branches are MUTABLE — a compromised or turned-malicious app-repo owner can move
+# the ref to backdoored content, and the unattended daily rebuild republishes it to
+# the catalog.json every install fetches. A commit SHA cannot be moved, so it is the
+# only immutable pin. `commit:` (or an equivalent `sha:`) takes precedence over
+# `ref:`; a `ref:` that is itself a 40-char SHA is also treated as immutable. If you
+# only set a mutable `ref:`, the build prints a ⚠ warning naming the entry (and, when
+# the GitHub API is reachable, the SHA it currently resolves to — copy it here).
 #
 # Requirements an app repo must meet are in CLAUDE.md and docs/BUILDING_AN_APP.md.
 # Complete, working reference apps live under examples/ in this repo — copy one

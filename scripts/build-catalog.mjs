@@ -22,6 +22,19 @@ const REGISTRY = 'registry.yaml';
 const APP_ID_RE = /^[a-z0-9][a-z0-9-]{0,79}$/;
 const CATEGORIES = new Set(['displays', 'donations', 'community', 'quran', 'admin', 'utilities']);
 
+// A full git commit SHA — 40 lowercase hex chars. Pinning a registry entry to one
+// of these is the ONLY immutable pin: tags and branches are mutable, so a repo
+// owner (or whoever compromises the repo) can move them to backdoored content and
+// the unattended daily rebuild (see .github/workflows/build-catalog.yml) will
+// republish it under a previously-reviewed ref. A SHA cannot be moved.
+const COMMIT_SHA_RE = /^[0-9a-f]{40}$/;
+
+// A digest-pinned image reference contains @sha256:<64 hex>. Without it, a moved
+// image tag can repoint a "pinned" version string to a different (backdoored)
+// image — pinning the tag is NOT enough; pin the digest.
+const IMAGE_LINE_RE = /^\s*image:\s*["']?([^"'\s#]+)/gm;
+const IMAGE_DIGEST_RE = /@sha256:[0-9a-f]{64}/;
+
 // Compose directives we refuse to publish. These mirror the platform's install-
 // time risk-check (OpenMasjidOS apps/compose-validate.ts): since v0.19.2 the
 // platform REFUSES to install a catalog app whose compose trips any of these, so
@@ -43,15 +56,39 @@ const DANGEROUS = [
   { re: /\/var\/run\/docker\.sock/, why: 'mounting the Docker socket' },
 ];
 
+let warnings = 0;
 function fail(msg) {
   console.error(`✗ ${msg}`);
   process.exit(1);
+}
+// Non-fatal: surfaced prominently so a maintainer notices, but does not break the
+// build (we must not start failing apps that already shipped on a mutable pin).
+function warn(msg) {
+  warnings++;
+  console.warn(`⚠ ${msg}`);
 }
 
 async function fetchText(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.text();
+}
+
+// Best-effort: resolve a mutable tag/branch to the commit SHA it currently points
+// at, so a maintainer can copy that SHA into registry.yaml for an immutable pin.
+// Uses the public GitHub commits API; returns null if unreachable/rate-limited —
+// never hard-fails (the build must work offline-ish and without a token).
+async function resolveRefToSha(repo, ref) {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/commits/${encodeURIComponent(ref)}`, {
+      headers: { Accept: 'application/vnd.github.sha' },
+    });
+    if (!res.ok) return null;
+    const sha = (await res.text()).trim();
+    return COMMIT_SHA_RE.test(sha) ? sha : null;
+  } catch {
+    return null;
+  }
 }
 
 // raw.githubusercontent.com base for a repo/ref (+ optional subpath), trailing slash.
@@ -74,24 +111,44 @@ const apps = [];
 const seen = new Set();
 
 for (const entry of entries) {
-  const { id, repo, ref = 'main', path } = entry || {};
+  // `commit`/`sha` (an immutable 40-hex SHA) takes precedence over `ref` (a
+  // mutable tag/branch). `ref` may itself be a 40-hex SHA — also immutable.
+  const { id, repo, ref = 'main', path, commit, sha } = entry || {};
   if (!id || !repo) fail(`registry entry is missing "id" or "repo": ${JSON.stringify(entry)}`);
   if (!APP_ID_RE.test(id)) fail(`${id}: invalid id — use kebab-case (a-z, 0-9, -), max 80 chars`);
   if (seen.has(id)) fail(`duplicate id in registry: ${id}`);
   seen.add(id);
 
-  const base = rawBase(repo, ref, path);
+  // Decide what to fetch at. An explicit commit/sha pin wins; otherwise the ref.
+  const pin = commit ?? sha;
+  if (pin != null && !COMMIT_SHA_RE.test(String(pin))) {
+    fail(`${id}: "commit"/"sha" must be a full 40-char lowercase hex commit SHA (got "${pin}")`);
+  }
+  const fetchRef = pin != null ? String(pin) : String(ref);
+  const immutable = COMMIT_SHA_RE.test(fetchRef);
+
+  if (!immutable) {
+    // Mutable pin → the integrity warning. Best-effort: show the SHA it currently
+    // resolves to so the maintainer can copy it into registry.yaml as `commit:`.
+    const current = await resolveRefToSha(repo, fetchRef);
+    const hint = current
+      ? ` It currently points at ${current} — copy that into registry.yaml as "commit: ${current}" to pin immutably.`
+      : '';
+    warn(`${id}: pinned to mutable ref "${fetchRef}" (a tag/branch can be moved to backdoored content under a previously-reviewed ref). Pin an immutable 40-char commit SHA instead via "commit:".${hint}`);
+  }
+
+  const base = rawBase(repo, fetchRef, path);
 
   let manifestText, composeText;
   try {
     manifestText = await fetchText(base + 'manifest.yaml');
   } catch (e) {
-    fail(`${id}: could not fetch manifest.yaml from ${repo}@${ref} (${e.message})`);
+    fail(`${id}: could not fetch manifest.yaml from ${repo}@${fetchRef} (${e.message})`);
   }
   try {
     composeText = await fetchText(base + 'docker-compose.yml');
   } catch (e) {
-    fail(`${id}: could not fetch docker-compose.yml from ${repo}@${ref} (${e.message})`);
+    fail(`${id}: could not fetch docker-compose.yml from ${repo}@${fetchRef} (${e.message})`);
   }
 
   let m;
@@ -109,6 +166,18 @@ for (const entry of entries) {
   }
   for (const { re, why } of DANGEROUS) {
     if (re.test(composeText)) fail(`${id}: docker-compose.yml requests "${why}", which is not allowed. See CLAUDE.md §security.`);
+  }
+
+  // FIX B — warn on any image: that isn't digest-pinned (@sha256:<hex>). A pinned
+  // tag is not enough: a tag can be moved to repoint at a different, backdoored
+  // image. Warn only (don't break apps already shipping on tag pins).
+  IMAGE_LINE_RE.lastIndex = 0;
+  for (let mm; (mm = IMAGE_LINE_RE.exec(composeText)); ) {
+    const imageRef = mm[1];
+    if (imageRef.includes('${')) continue; // env-substituted at install — can't judge here
+    if (!IMAGE_DIGEST_RE.test(imageRef)) {
+      warn(`${id}: image "${imageRef}" is not digest-pinned — a moved tag could repoint it to a backdoored image. Pin it as "<image>:<tag>@sha256:<digest>" (see docs/BUILDING_AN_APP.md → Security requirements).`);
+    }
   }
 
   apps.push({
@@ -133,7 +202,7 @@ for (const entry of entries) {
     notifications: m.notifications === true ? true : undefined,
     compose: composeText,
   });
-  console.log(`✓ ${id} ← ${repo}@${ref}`);
+  console.log(`✓ ${id} ← ${repo}@${fetchRef}${immutable ? '' : ' (mutable ref)'}`);
 }
 
 // Coming-soon teasers — metadata only, no repo/compose. The platform renders
@@ -157,3 +226,7 @@ apps.sort((a, b) => a.name.localeCompare(b.name));
 const clean = apps.map((a) => JSON.parse(JSON.stringify(a)));
 writeFileSync('catalog.json', JSON.stringify({ apps: clean }, null, 2) + '\n');
 console.log(`✓ Built catalog.json with ${clean.length} app(s).`);
+if (warnings > 0) {
+  // Surface, but don't fail — these are supply-chain hardening nudges, not errors.
+  console.warn(`⚠ ${warnings} security warning(s) above. Immutable commit-SHA pins (registry.yaml) and digest-pinned images are the integrity controls for the unattended daily rebuild.`);
+}

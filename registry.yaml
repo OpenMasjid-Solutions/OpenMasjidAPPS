@@ -35,8 +35,8 @@ apps:
     commit: e38b8f76faf6fbcbdb6497ed53aa3327ac90b2f2
   - id: donations
     repo: hasan-ismail/OpenMasjidDonations
-    ref: v0.9.0                                  # release line; commit (below) is the immutable pin (adds the @sha256 image digest)
-    commit: d5fa3d255ad3552bb681dd3e59806ee7f7a80d47
+    ref: v0.10.0                                 # release line; commit (below) is the immutable pin (adds the @sha256 image digest)
+    commit: 4c1f73cb4ac3679b3e6a1d3a281d0c3ea91ba6ed
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: hasan-ismail/openmasjid-prayer-times-display

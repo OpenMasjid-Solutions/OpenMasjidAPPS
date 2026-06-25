@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-only",
+  "author": "Hasan Ismail",
   "description": "The app catalog for OpenMasjidOS. `npm run build` regenerates catalog.json from registry.yaml.",
   "scripts": {
     "build": "node scripts/build-catalog.mjs"

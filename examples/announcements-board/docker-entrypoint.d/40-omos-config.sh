@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Hasan Ismail
 # Regenerate config.js from the environment variables the masjid set at install
 # time. The official nginx image runs every *.sh here before starting nginx.
 set -eu

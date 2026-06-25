@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Hasan Ismail
 /*
  * config.js — runtime configuration (dev defaults).
  * Regenerated at container start from install settings by

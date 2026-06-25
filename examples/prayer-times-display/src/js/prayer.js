@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Hasan Ismail
 /*
  * prayer.js — original prayer-time calculation engine for OpenMasjidAPPS.
  *

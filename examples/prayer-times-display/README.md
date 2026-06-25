@@ -46,3 +46,8 @@ Open `src/index.html` in a browser; it uses the development defaults in `src/con
 
 Published by CI to `ghcr.io/openmasjid-solutions/openmasjid-prayer-times-display` and pinned by tag in
 `docker-compose.yml`.
+
+## License
+
+AGPL-3.0-only — see [LICENSE](./LICENSE). © 2026 Hasan Ismail. If you deploy a modified version as a
+network service, the AGPL's §13 requires you to publish your modified source to its users.

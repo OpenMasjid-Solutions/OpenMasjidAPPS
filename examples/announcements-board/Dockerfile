@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Hasan Ismail
 # Announcements Board — a static site served by nginx.
 # Settings are injected at container start into config.js (see
 # docker-entrypoint.d/40-omos-config.sh), so the same image works for any masjid.

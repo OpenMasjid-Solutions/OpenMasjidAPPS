@@ -61,7 +61,9 @@ registry is).
 ## Licensing
 
 This repository — the catalog tooling, registry, and example scaffolding — is licensed
-**AGPL-3.0**, the same as the platform (see [LICENSE](./LICENSE)).
+**AGPL-3.0** (© 2026 Hasan Ismail), the same as the platform (see [LICENSE](./LICENSE)). Under the
+AGPL's network clause (§13), if you run a **modified** version of this software as a network service,
+you must make your modified source available to its users under the AGPL.
 
 **Each app keeps its own license**, declared in its `manifest.yaml` `license` field. Apps run at
 arm's length as separate containers, so they are not bound by this repo's license. Do not copy app

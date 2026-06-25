@@ -1,10 +1,12 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Hasan Ismail
 id: announcements-board
 name: Announcements Board
 tagline: A rotating notice board for your masjid's screens
 category: community
 version: 1.0.0
 author: OpenMasjidAPPS
-license: MIT
+license: AGPL-3.0-only
 icon: icon.svg
 screenshots:
   - screenshots/1.svg

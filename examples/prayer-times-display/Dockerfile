@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Hasan Ismail
 # Prayer Times Display — a static site served by nginx.
 # Settings are injected at container start into config.js (see
 # docker-entrypoint.d/40-omos-config.sh), so the same image works for any masjid.

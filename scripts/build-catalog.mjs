@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Hasan Ismail
 /**
  * Builds catalog.json by aggregating the app repositories listed in registry.yaml.
  *
@@ -15,6 +17,7 @@
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { parse } from 'yaml';
+import { validateCompose } from './validate-compose.mjs';
 
 const REGISTRY = 'registry.yaml';
 
@@ -35,26 +38,9 @@ const COMMIT_SHA_RE = /^[0-9a-f]{40}$/;
 const IMAGE_LINE_RE = /^\s*image:\s*["']?([^"'\s#]+)/gm;
 const IMAGE_DIGEST_RE = /@sha256:[0-9a-f]{64}/;
 
-// Compose directives we refuse to publish. These mirror the platform's install-
-// time risk-check (OpenMasjidOS apps/compose-validate.ts): since v0.19.2 the
-// platform REFUSES to install a catalog app whose compose trips any of these, so
-// we reject them at PR time to keep "passes the catalog build" === "installs".
-const DANGEROUS = [
-  { re: /\bprivileged:\s*true\b/, why: 'privileged: true' },
-  { re: /\bnetwork_mode:\s*["']?host\b/, why: 'network_mode: host' },
-  { re: /\bpid:\s*["']?host\b/, why: 'pid: host' },
-  { re: /\bipc:\s*["']?host\b/, why: 'ipc: host' },
-  { re: /\buserns_mode:\s*["']?host\b/, why: 'userns_mode: host' },
-  { re: /\bcgroup:\s*["']?host\b/, why: 'cgroup: host' },
-  { re: /\buts:\s*["']?host\b/, why: 'uts: host' },
-  { re: /\bcap_add\s*:/, why: 'cap_add' },
-  { re: /\bdevices\s*:/, why: 'devices (host device passthrough)' },
-  { re: /\bdevice_cgroup_rules\s*:/, why: 'device_cgroup_rules' },
-  { re: /\bunconfined\b/i, why: 'security_opt: unconfined' },
-  { re: /\bextends\s*:/, why: 'extends (merges unseen config)' },
-  { re: /^\s*include\s*:/m, why: 'include (merges unseen config)' },
-  { re: /\/var\/run\/docker\.sock/, why: 'mounting the Docker socket' },
-];
+// Compose safety is enforced by validateCompose() (scripts/validate-compose.mjs),
+// which parses the YAML and mirrors the platform's install-time risk check so that
+// "passes the catalog build" === "installs on the platform".
 
 let warnings = 0;
 function fail(msg) {
@@ -124,17 +110,21 @@ for (const entry of entries) {
   if (pin != null && !COMMIT_SHA_RE.test(String(pin))) {
     fail(`${id}: "commit"/"sha" must be a full 40-char lowercase hex commit SHA (got "${pin}")`);
   }
-  const fetchRef = pin != null ? String(pin) : String(ref);
-  const immutable = COMMIT_SHA_RE.test(fetchRef);
+  let fetchRef = pin != null ? String(pin) : String(ref);
+  let immutable = COMMIT_SHA_RE.test(fetchRef);
 
   if (!immutable) {
-    // Mutable pin → the integrity warning. Best-effort: show the SHA it currently
-    // resolves to so the maintainer can copy it into registry.yaml as `commit:`.
+    // Mutable pin: resolve it to the commit SHA it currently points at and fetch
+    // THAT, so catalog.json always references an immutable source that can't change
+    // under a moving branch/tag. Still warn so a permanent `commit:` pin is added.
     const current = await resolveRefToSha(repo, fetchRef);
-    const hint = current
-      ? ` It currently points at ${current} — copy that into registry.yaml as "commit: ${current}" to pin immutably.`
-      : '';
-    warn(`${id}: pinned to mutable ref "${fetchRef}" (a tag/branch can be moved to backdoored content under a previously-reviewed ref). Pin an immutable 40-char commit SHA instead via "commit:".${hint}`);
+    if (current) {
+      warn(`${id}: pinned to mutable ref "${fetchRef}" — resolved to ${current} for this build. Add "commit: ${current}" to registry.yaml to pin it permanently (a tag/branch can be moved to backdoored content under a previously-reviewed ref).`);
+      fetchRef = current;
+      immutable = true;
+    } else {
+      warn(`${id}: pinned to mutable ref "${fetchRef}" and could not resolve it to a commit SHA (offline/rate-limited); catalog.json will reference the mutable ref. Pin a "commit:" SHA in registry.yaml.`);
+    }
   }
 
   const base = rawBase(repo, fetchRef, path);
@@ -164,9 +154,11 @@ for (const entry of entries) {
   if (m.category && !CATEGORIES.has(m.category)) {
     fail(`${id}: unknown category "${m.category}" (use: ${[...CATEGORIES].join(', ')})`);
   }
-  for (const { re, why } of DANGEROUS) {
-    if (re.test(composeText)) fail(`${id}: docker-compose.yml requests "${why}", which is not allowed. See CLAUDE.md §security.`);
+  const composeCheck = validateCompose(composeText);
+  if (composeCheck.errors.length) {
+    fail(`${id}: docker-compose.yml has disallowed settings:\n   - ${composeCheck.errors.join('\n   - ')}\n   See docs/BUILDING_AN_APP.md §2b (Security requirements).`);
   }
+  for (const w of composeCheck.warnings) warn(`${id}: compose: ${w}`);
 
   // FIX B — warn on any image: that isn't digest-pinned (@sha256:<hex>). A pinned
   // tag is not enough: a tag can be moved to repoint at a different, backdoored

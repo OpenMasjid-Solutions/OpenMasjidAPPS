@@ -1,5 +1,9 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Hasan Ismail
 services:
   app:
+    # In your real app repo, digest-pin for integrity:
+    #   ghcr.io/<owner>/<repo>:<tag>@sha256:<digest>  (see docs/BUILDING_AN_APP.md §2b)
     image: ghcr.io/openmasjid-solutions/openmasjid-announcements-board:1.0.0
     restart: unless-stopped
     environment:

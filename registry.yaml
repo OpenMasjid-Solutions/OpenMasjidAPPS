@@ -33,8 +33,8 @@
 apps:
   - id: display
     repo: OpenMasjid-Solutions/OpenMasjidDisplay
-    ref: v0.26.0                                 # human-readable tag; commit (below) pins the immutable source (adds icon.png logo on top of the v0.26.0 release)
-    commit: e41d6431ee47a87497745b8bcd0a47d94e93e471
+    ref: v0.26.0                                 # human-readable tag; commit (below) pins the immutable source (adds the app-icon logo on top of the v0.26.0 release)
+    commit: 7f5666151ad18e289c004881c850f785ce11b3cb
   - id: donations
     repo: OpenMasjid-Solutions/OpenMasjidDonations
     ref: v0.15.0                                 # release line; commit (below) is the immutable pin (adds the @sha256 image digest)

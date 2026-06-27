@@ -322,6 +322,52 @@ notifications), so treat it as best-effort and never depend on it — your app m
 > `OPENMASJID_APP_SECRET`, so your compose `environment:` must reference them — see *Wire it into your
 > compose* above. If it doesn't, `/api/fabric/notify` calls never authenticate and silently no-op.
 
+**Stripe — opt in with `stripe: true`** *(platform v0.29.0+)*. If your app takes card payments, do
+**not** ask the admin to paste Stripe keys into your app. The admin configures one or more **named**
+Stripe accounts once in **Settings → Payments**; your app fetches a named account's keys from the
+Fabric. This means several apps (donations page, kiosk…) share one account, and the keys are backed
+up / migrated with the platform — never re-entered per app.
+
+- Set `stripe: true` in `manifest.yaml` (the platform then issues your per-app secret).
+- Add an install **setting** so the admin picks which named account this app uses, e.g.
+  `STRIPE_ACCOUNT` (a `text` setting). The admin types the account name they created in Settings → Payments.
+- From your **backend**, fetch the keys (server→server — these are secrets, so never do this from the browser):
+
+```
+GET ${OPENMASJID_BASE_URL}/api/fabric/stripe?account=<STRIPE_ACCOUNT>
+  X-OpenMasjid-App-Secret: <OPENMASJID_APP_SECRET>
+→ 200 { "id", "label", "publishableKey", "secretKey", "webhookSecret" }
+   (omit ?account= to get the only/first account)
+```
+
+Fetch per process start (or cache in memory only) — **never persist the returned `secretKey` /
+`webhookSecret` to your data volume**, so they always track the OS vault. Apps that use Stripe also
+need `https: true` (§2b.5). Keep any local Stripe fields you have as the **standalone fallback** for
+when the Fabric is absent (`OPENMASJID_BASE_URL`/secret unset).
+
+### Restore & migration resilience — REQUIRED for every Fabric app
+
+A backup can be restored onto a **different machine**, which changes the platform's address. Your app
+**must** survive that without locking the admin out. The rules:
+
+1. **Read `OPENMASJID_BASE_URL` and `OPENMASJID_APP_SECRET` from the environment on every process
+   start, and NEVER persist them (or anything derived, like a "linked to OpenMasjidOS" flag) to your
+   data volume.** The platform rewrites `OPENMASJID_BASE_URL` to the current machine and may rotate
+   your secret (admin "Reset sign-in"); a cached copy in your DB would point at the old machine/secret
+   and break sign-in. (The platform recreates your container on restore, so fresh env is picked up.)
+2. **Never let the panel become un-enterable.** If you gate a local-password path on "is the Fabric
+   configured?", you **must** still allow a local-password **recovery** when the platform is
+   *unreachable*. Do **not** return a hard `403 "signs in through OpenMasjidOS"` for setup while the
+   platform can't be reached — otherwise a momentarily-down or freshly-migrated platform bricks your
+   app with no way in. Distinguish *SSO not configured* from *SSO configured but platform unreachable*
+   and offer the admin a way in either way.
+3. **SSO/Stripe/notify calls must fail soft** — a `4000ms`-ish timeout, `redirect: 'error'`, and a
+   graceful fallback to standalone. An unreachable platform = "no Fabric this request", not a crash.
+
+*(These exist because a restore-to-new-machine could lock admins out of the catalog apps — see each
+app's `docs/RESTORE_SSO_FIX.md`. The platform also helps: it refreshes the base URL on restore
+(OpenMasjidOS v0.27.0) and offers a full "Reset sign-in" (v0.28.0).)*
+
 ---
 
 ## 8. Get listed in the catalog

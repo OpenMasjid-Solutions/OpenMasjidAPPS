@@ -189,9 +189,14 @@ for (const entry of entries) {
     ports: m.ports,
     // Opt-in OpenMasjidOS Fabric capabilities. Carried through so the platform
     // issues the app a per-app secret at install and honours the matching calls
-    // (sso → /api/auth/session, notifications → /api/fabric/notify).
+    // (sso → /api/auth/session, notifications → /api/fabric/notify,
+    //  stripe → /api/fabric/stripe).
     sso: m.sso === true ? true : undefined,
     notifications: m.notifications === true ? true : undefined,
+    // Fetch shared Stripe keys from the OS vault (one account, many apps) instead
+    // of each app storing its own. The platform issues the per-app secret + honours
+    // GET /api/fabric/stripe?account=<name>.
+    stripe: m.stripe === true ? true : undefined,
     // Require HTTPS — set ONLY by apps that use Stripe (they need a secure
     // context). The platform serves such an app on a dedicated HTTPS port.
     https: m.https === true ? true : undefined,

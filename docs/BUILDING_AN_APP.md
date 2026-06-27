@@ -371,10 +371,12 @@ GET ${OPENMASJID_BASE_URL}/api/fabric/site
 domain or persist `publicUrl`** — it changes when the admin changes their tunnel/domain.
 
 **How routing works (path-based, one subdomain).** The OS keeps every app on a single public
-hostname — **`omos.<the-admin's-domain>`** — and gives each app a **path** equal to its id. The admin
-adds one Cloudflare *Public Hostname* per app (subdomain `omos`, that path, Service **HTTP**
-`localhost:<the app's published port>`); the OS shows the exact rows in **Settings → Remote access**.
-So your app is reached at `https://omos.example.org/<your-app-id>/…`.
+hostname — **`omos.<the-admin's-domain>`** — and gives each app a **path** (admin-configurable in
+**Settings → Remote access**; defaults to the app id, e.g. donations → `donate`). The admin adds one
+Cloudflare *Public Hostname* per app (subdomain `omos`, that path, Service **HTTP**
+`localhost:<the app's published port>`); the OS shows the exact rows to copy. So your app is reached at
+`https://omos.example.org/<path>/…`. **Don't assume the path equals your id — always read it from
+`basePath`** (it's whatever the admin chose).
 
 **Therefore a `domain` app MUST be base-path aware.** Cloudflare forwards the full path (it does *not*
 strip the prefix), so your server receives requests under `basePath` (e.g. `/donations/...`). Mount

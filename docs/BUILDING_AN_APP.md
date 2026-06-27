@@ -355,6 +355,23 @@ Fetch per process start (or cache in memory only) — **never persist the return
 need `https: true` (§2b.5). Keep any local Stripe fields you have as the **standalone fallback** for
 when the Fabric is absent (`OPENMASJID_BASE_URL`/secret unset).
 
+**Choosing the account — in-app picker (preferred) vs install setting.** Two options:
+
+- **In-app (recommended):** declare **no** install setting and let the admin pick on your own admin
+  screen. List the masjid's accounts (non-secret) and store the chosen **id** in your app data, then
+  fetch that account's keys with `?account=<id>` as above. This keeps **install one-click** (the
+  platform shows no dialog when an app has no settings) and lets the admin change accounts later
+  without reinstalling.
+
+  ```
+  GET ${OPENMASJID_BASE_URL}/api/fabric/stripe/accounts   (platform v0.33.0+)
+    X-OpenMasjid-App-Secret: <OPENMASJID_APP_SECRET>
+  → 200 { "accounts": [ { "id": "main-masjid", "label": "Main Masjid" }, … ] }   (no keys)
+  ```
+
+- **Install-time:** a `type: stripe-account` setting (shown above) renders the dropdown in the install
+  dialog instead. Simpler, but adds an install popup and is fixed at install. Prefer the in-app picker.
+
 **Remote access / public URL — opt in with `domain: true`** *(platform v0.30.0+)*. The admin can run
 a **Cloudflare Tunnel** from **Settings → Remote access** (token + their domain, e.g.
 `omos.example.org`), making the masjid's apps reachable from the internet. If your app needs to build

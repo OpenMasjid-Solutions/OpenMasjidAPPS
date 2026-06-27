@@ -329,8 +329,18 @@ Fabric. This means several apps (donations page, kiosk…) share one account, an
 up / migrated with the platform — never re-entered per app.
 
 - Set `stripe: true` in `manifest.yaml` (the platform then issues your per-app secret).
-- Add an install **setting** so the admin picks which named account this app uses, e.g.
-  `STRIPE_ACCOUNT` (a `text` setting). The admin types the account name they created in Settings → Payments.
+- Add an install **setting** of type **`stripe-account`** so the admin **picks** which account this
+  app uses — the OS renders a **dropdown of the Stripe accounts** configured in Settings → Payments
+  (no typing keys in the install dialog). The chosen account's id is passed as your setting's value;
+  blank = the only/first account. *(Platform v0.32.2+. On older platforms `stripe-account` degrades to
+  a text box.)*
+
+  ```yaml
+  settings:
+    - key: STRIPE_ACCOUNT
+      label: OpenMasjidOS Stripe account
+      type: stripe-account
+  ```
 - From your **backend**, fetch the keys (server→server — these are secrets, so never do this from the browser):
 
 ```

@@ -357,13 +357,30 @@ endpoint, a QR code to a donation page — ask the platform for your public addr
 ```
 GET ${OPENMASJID_BASE_URL}/api/fabric/site
   X-OpenMasjid-App-Secret: <OPENMASJID_APP_SECRET>
-→ 200 { "enabled": true, "domain": "omos.example.org", "publicUrl": "https://omos.example.org/<your-app-id>" }
-   (enabled:false + publicUrl:"" when remote access is off — fall back to the request's own host)
+→ 200 {
+    "enabled": true,
+    "domain": "omos.example.org",
+    "publicUrl": "https://omos.example.org/<your-app-id>",
+    "basePath": "/<your-app-id>"
+  }
+   (enabled:false + publicUrl/basePath:"" when remote access is off — fall back to the request's own host)
 ```
 
 `publicUrl` is your app's public base; build links under it (e.g. `${publicUrl}/webhook`). When
 `enabled` is false, derive URLs from the incoming request host as you do today. **Never hard-code the
 domain or persist `publicUrl`** — it changes when the admin changes their tunnel/domain.
+
+**How routing works (path-based, one subdomain).** The OS keeps every app on a single public
+hostname — **`omos.<the-admin's-domain>`** — and gives each app a **path** equal to its id. The admin
+adds one Cloudflare *Public Hostname* per app (subdomain `omos`, that path, Service **HTTP**
+`localhost:<the app's published port>`); the OS shows the exact rows in **Settings → Remote access**.
+So your app is reached at `https://omos.example.org/<your-app-id>/…`.
+
+**Therefore a `domain` app MUST be base-path aware.** Cloudflare forwards the full path (it does *not*
+strip the prefix), so your server receives requests under `basePath` (e.g. `/donations/...`). Mount
+your routes and emit your asset/link URLs under `basePath` so they resolve behind the tunnel. Read it
+from `/api/fabric/site` (above); when `basePath` is `""` (no remote access, or accessed directly on the
+LAN) serve at root as usual. A static SPA should set its base href / router basename from it.
 
 ### Restore & migration resilience — REQUIRED for every Fabric app
 

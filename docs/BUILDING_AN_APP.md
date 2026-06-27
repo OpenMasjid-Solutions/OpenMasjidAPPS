@@ -345,6 +345,26 @@ Fetch per process start (or cache in memory only) — **never persist the return
 need `https: true` (§2b.5). Keep any local Stripe fields you have as the **standalone fallback** for
 when the Fabric is absent (`OPENMASJID_BASE_URL`/secret unset).
 
+**Remote access / public URL — opt in with `domain: true`** *(platform v0.30.0+)*. The admin can run
+a **Cloudflare Tunnel** from **Settings → Remote access** (token + their domain, e.g.
+`omos.example.org`), making the masjid's apps reachable from the internet. If your app needs to build
+**absolute** URLs that work from outside the LAN — Stripe `success_url`/`cancel_url`, a public webhook
+endpoint, a QR code to a donation page — ask the platform for your public address instead of guessing:
+
+- Set `domain: true` in `manifest.yaml` (the platform issues your per-app secret).
+- From your **backend**:
+
+```
+GET ${OPENMASJID_BASE_URL}/api/fabric/site
+  X-OpenMasjid-App-Secret: <OPENMASJID_APP_SECRET>
+→ 200 { "enabled": true, "domain": "omos.example.org", "publicUrl": "https://omos.example.org/<your-app-id>" }
+   (enabled:false + publicUrl:"" when remote access is off — fall back to the request's own host)
+```
+
+`publicUrl` is your app's public base; build links under it (e.g. `${publicUrl}/webhook`). When
+`enabled` is false, derive URLs from the incoming request host as you do today. **Never hard-code the
+domain or persist `publicUrl`** — it changes when the admin changes their tunnel/domain.
+
 ### Restore & migration resilience — REQUIRED for every Fabric app
 
 A backup can be restored onto a **different machine**, which changes the platform's address. Your app

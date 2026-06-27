@@ -197,6 +197,9 @@ for (const entry of entries) {
     // of each app storing its own. The platform issues the per-app secret + honours
     // GET /api/fabric/stripe?account=<name>.
     stripe: m.stripe === true ? true : undefined,
+    // Learn this app's PUBLIC URL (the admin's Cloudflare-tunnel domain + path) via
+    // GET /api/fabric/site — for absolute links (Stripe return URLs, webhooks, QR).
+    domain: m.domain === true ? true : undefined,
     // Require HTTPS — set ONLY by apps that use Stripe (they need a secure
     // context). The platform serves such an app on a dedicated HTTPS port.
     https: m.https === true ? true : undefined,

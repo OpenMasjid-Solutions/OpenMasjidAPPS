@@ -33,8 +33,8 @@
 apps:
   - id: display
     repo: OpenMasjid-Solutions/OpenMasjidDisplay
-    ref: v0.29.0                                 # human-readable tag; commit (below) is the immutable pin (SSO-unreachable recovery — local password always available)
-    commit: 696e2b0bf863451457c441e8f12e304167e5965a
+    ref: v0.30.0                                 # human-readable tag; commit (below) is the immutable pin (website widget, Jumu'ah 1/2, Arabic hadith)
+    commit: ad64c4e6b0ea012e4042e4dc3cd8b28c45852d2e
   - id: donations
     repo: OpenMasjid-Solutions/OpenMasjidDonations
     ref: v0.18.0                                 # release line; commit (below) is the immutable pin (adds the @sha256 image digest)

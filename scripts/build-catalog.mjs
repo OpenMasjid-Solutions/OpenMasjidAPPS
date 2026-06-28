@@ -193,6 +193,9 @@ for (const entry of entries) {
     //  stripe → /api/fabric/stripe).
     sso: m.sso === true ? true : undefined,
     notifications: m.notifications === true ? true : undefined,
+    // Read this app's PUBLIC URL behind the admin's Cloudflare tunnel via
+    // GET /api/fabric/site (e.g. to build embed/QR/webhook links). No secrets.
+    domain: m.domain === true ? true : undefined,
     // Fetch shared Stripe keys from the OS vault (one account, many apps) instead
     // of each app storing its own. The platform issues the per-app secret + honours
     // GET /api/fabric/stripe?account=<name>.

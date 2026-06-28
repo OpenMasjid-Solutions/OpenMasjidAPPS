@@ -407,6 +407,12 @@ single public hostname — **`omos.<the-admin's-domain>`** — and gives each ap
 (it does not strip the prefix), so you remain base-path aware. **Don't assume the path equals your id —
 always read it from `basePath`** (`/api/fabric/site`); it's whatever the admin chose.
 
+> **Acceptance test (the whole chain).** With remote access on and your app installed:
+> `curl https://omos.<domain>/<basePath>/<some-app-route>` must return *your app's* response — proving
+> Cloudflare → OS front door → your container all line up. (`<basePath>` is what `/api/fabric/site`
+> returns, default your id.) If it 404s: the OS only proxies a path that matches an installed app's
+> configured path, so check the path in **Settings → Remote access** matches what you're requesting.
+
 **Therefore a `domain` app MUST be base-path aware.** Cloudflare forwards the full path (it does *not*
 strip the prefix), so your server receives requests under `basePath` (e.g. `/donations/...`). Mount
 your routes and emit your asset/link URLs under `basePath` so they resolve behind the tunnel. Read it

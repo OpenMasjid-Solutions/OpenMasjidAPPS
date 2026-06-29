@@ -33,8 +33,8 @@
 apps:
   - id: display
     repo: OpenMasjid-Solutions/OpenMasjidDisplay
-    ref: v0.32.1                                 # human-readable tag; commit (below) is the immutable pin (Arabic hadith sanitize; white-bg icon)
-    commit: cfab8db7e50b236c135ef79e405d21165616b318
+    ref: v0.33.0                                 # human-readable tag; commit (below) is the immutable pin (no-skip countdown via capped render + upscale)
+    commit: 7bca43eb24d16e483fdec585ad46aeb6c41bff52
   - id: donations
     repo: OpenMasjid-Solutions/OpenMasjidDonations
     ref: v0.21.0                                 # release line; commit (below) is the immutable pin (adds the @sha256 image digest)

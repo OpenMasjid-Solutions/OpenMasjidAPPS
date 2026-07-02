@@ -310,6 +310,14 @@ Exactly one of: `displays`, `donations`, `community`, `quran`, `admin`, `utiliti
 - Pin image versions; prefer trusted/official base images; don't fetch-and-run arbitrary remote
   scripts at container start.
 
+**`scripts/validate-compose.mjs` invariant — DO NOT REGRESS** (v0.39.0 sweep): this validator is the
+catalog's safety gate and **must stay in lockstep with the platform's `apps/compose-validate.ts`** so
+"passes the catalog build == safe to install". It must reject (as `errors`, in both the structured
+branch and the raw-regex fallback): `volumes_from`, `env_file` with an absolute or `..` path,
+top-level `secrets:`/`configs:` with a `file:` source pointing outside the app folder, and **truthy**
+`privileged` (`yes|on|1|"true"`, via `isTruthyFlag` — not just `=== true`), on top of the existing
+namespace/cap/device/mount checks. When the platform adds a compose check, add the same one here.
+
 **Supply-chain hardening (app authors — full version in `docs/BUILDING_AN_APP.md` §2b):**
 - **Digest-pin the image** with `@sha256:…` in the compose — pinning the tag alone is not enough,
   because a tag can be moved to repoint at a different (backdoored) image.

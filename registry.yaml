@@ -39,6 +39,10 @@ apps:
     repo: OpenMasjid-Solutions/OpenMasjidDonations
     ref: v0.22.0                                 # security release: ships the CSV formula/DDE-injection fix (committed after v0.21.0's pin, so it never reached a built image) + a test lock; commit below is the immutable pin (adds the @sha256 image digest)
     commit: 593ad8a03cd7916cf8b50c27de394a86a4bb15ca
+  - id: kiosk
+    repo: OpenMasjid-Solutions/OpenMasjidKiosk
+    ref: main                                    # early build (slices 1–2: themed admin shell + OpenMasjidOS SSO/auth). In-person Stripe Terminal payments land in later slices; bump the commit pin as they ship.
+    commit: a04bc58c621f78fc025b8819cd205ea46e3cb78f   # immutable pin; the app's compose pins the @sha256 image digest
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display
@@ -51,11 +55,6 @@ apps:
 # in the App Store with a "Coming soon" badge and can't be installed. Metadata
 # only here; when one ships, give it a repo + tag and move it up into `apps:`.
 coming_soon:
-  - id: kiosk
-    name: OpenMasjid Kiosk
-    tagline: An Android-tablet donation kiosk — take in-person card donations with a Stripe M2 card reader.
-    category: donations
-    https: true                                  # uses Stripe (M2 reader) → must be served over HTTPS
   - id: student-manager
     name: OpenMasjid Student Manager
     tagline: Run your madrasah — students, classes, attendance and progress.

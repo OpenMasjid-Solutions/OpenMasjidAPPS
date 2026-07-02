@@ -33,8 +33,8 @@
 apps:
   - id: display
     repo: OpenMasjid-Solutions/OpenMasjidDisplay
-    ref: v0.44.0                                 # ships the /api/setup SSO takeover fix (+ built-in ahadith library, adhan delays/pop-up, ticker decoder fix)
-    commit: f4868a22378ff05d52606c6ec650c6680aa2d277
+    ref: v0.45.0                                 # Arabic for the built-in ahadith on Salāh + per-hadith salah targeting
+    commit: ffcdfd726111ff898994c6883dde52a5a5c207b7
   - id: donations
     repo: OpenMasjid-Solutions/OpenMasjidDonations
     ref: v0.22.0                                 # security release: ships the CSV formula/DDE-injection fix (committed after v0.21.0's pin, so it never reached a built image) + a test lock; commit below is the immutable pin (adds the @sha256 image digest)

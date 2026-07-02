@@ -40,6 +40,34 @@ function classifyVolumeSource(src) {
   return 'host'; // relative bind (./data) — discouraged, not fatal
 }
 
+// Docker Compose coerces true/yes/on/1/y (and the number 1) to boolean true, so
+// a strict `=== true` check missed `privileged: yes|on|1|"true"`.
+function isTruthyFlag(v) {
+  if (v === true) return true;
+  if (typeof v === 'number') return v !== 0;
+  if (typeof v === 'string') return /^(true|yes|on|1|y)$/i.test(v.trim());
+  return false;
+}
+
+// A file-based secret/config (`file:`) is bind-mounted from the host, so treat
+// its source like a bind mount: socket/escape/sensitive host paths are fatal.
+function checkFileSource(name, file, errors, section) {
+  if (typeof file !== 'string' || !file) return;
+  switch (classifyVolumeSource(file)) {
+    case 'sock':
+      errors.add(`${section} "${name}": file source is the Docker socket ("${file}")`);
+      break;
+    case 'escape':
+      errors.add(`${section} "${name}": file source escapes the app folder with ".." ("${file}")`);
+      break;
+    case 'sensitive':
+      errors.add(`${section} "${name}": file source is a sensitive host path ("${file}")`);
+      break;
+    default:
+      break; // relative/in-folder file — fine
+  }
+}
+
 function checkVolumeEntry(v, errors, warnings, where) {
   let source;
   if (typeof v === 'string') {
@@ -89,7 +117,9 @@ export function validateCompose(text) {
   } catch (e) {
     // Couldn't parse — fall back to coarse regexes so we still reject the worst.
     const RAW = [
-      [/\bprivileged:\s*true\b/, 'privileged: true'],
+      [/\bprivileged:\s*["']?(true|yes|on|1|y)\b/i, 'privileged (full host access)'],
+      [/\bvolumes_from\s*:/, 'volumes_from (inherits another container\'s mounts)'],
+      [/\benv_file\s*:\s*["']?(\/|[^\n]*\.\.)/, 'env_file outside the app folder'],
       [/\bnetwork_mode:\s*["']?(host|container:)/, 'host/container network_mode'],
       [/\b(pid|ipc):\s*["']?(host|container:)/, 'host/container pid or ipc namespace'],
       [/\b(userns_mode|cgroup|uts):\s*["']?host\b/, 'host namespace'],
@@ -114,7 +144,23 @@ export function validateCompose(text) {
     const where = `service "${name}"`;
     const str = (v) => (v == null ? '' : String(v));
 
-    if (svc.privileged === true) errors.add(`${where}: privileged: true`);
+    if (isTruthyFlag(svc.privileged)) errors.add(`${where}: privileged (full host access)`);
+
+    // volumes_from copies another container's mounts — it can inherit the core's
+    // Docker socket + data dir. No listed app needs it.
+    if (svc.volumes_from && (!Array.isArray(svc.volumes_from) || svc.volumes_from.length)) {
+      errors.add(`${where}: volumes_from copies another container's mounts (can inherit the Docker socket + data dir)`);
+    }
+
+    // env_file is read relative to the compose file's folder; an absolute path or
+    // one containing ".." escapes the app folder and can read other apps'/the
+    // platform's secrets into this container's environment.
+    for (const ef of Array.isArray(svc.env_file) ? svc.env_file : svc.env_file != null ? [svc.env_file] : []) {
+      const p = typeof ef === 'string' ? ef : ef && typeof ef === 'object' ? String(ef.path ?? '') : '';
+      if (p && (p.trim().startsWith('/') || p.includes('..'))) {
+        errors.add(`${where}: env_file reads outside the app folder ("${p}")`);
+      }
+    }
 
     const nm = str(svc.network_mode);
     if (nm === 'host' || nm.startsWith('container:')) errors.add(`${where}: network_mode "${nm}" (host/other-container network namespace)`);
@@ -153,6 +199,14 @@ export function validateCompose(text) {
     const oo = String(o.o || '').toLowerCase();
     if (type === 'bind' || type === 'none' || /\bbind\b/.test(oo)) {
       errors.add(`volume "${name}": local-driver bind mount to the host (${o.device || 'device unset'})`);
+    }
+  }
+
+  // Top-level file-based secrets/configs bind a host file into the container.
+  for (const [section, key] of [['secret', 'secrets'], ['config', 'configs']]) {
+    const defs = doc[key] && typeof doc[key] === 'object' ? doc[key] : {};
+    for (const [name, def] of Object.entries(defs)) {
+      if (def && typeof def === 'object') checkFileSource(name, def.file, errors, section);
     }
   }
 

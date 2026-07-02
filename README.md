@@ -80,6 +80,28 @@ Complete, working **reference apps** (`prayer-times-display`, `announcements-boa
 new repo to start. They are templates/documentation — they are **not** part of the catalog (the
 registry is).
 
+## Maintainers — catalog auto-publish (`CATALOG_PUSH_TOKEN`)
+
+The **Build catalog** workflow (`.github/workflows/build-catalog.yml`) regenerates and commits
+`catalog.json` on every push to `registry.yaml`/`scripts/`, on a daily schedule, and on manual /
+`repository_dispatch` runs.
+
+`main` is protected by a required **`cla`** status check. A direct push never produces that check, so
+the default `github-actions[bot]` token **cannot** push the rebuilt `catalog.json` — it's rejected
+with *"Required status check `cla` is expected"*, and the auto-publish silently stops. To let the
+workflow publish **while keeping the CLA gate fully required**, it checks out with a bypass token:
+
+- Add a repository secret **`CATALOG_PUSH_TOKEN`** — a token from an account allowed to **bypass
+  branch protection**, scoped to **Contents: write** on this repo. Either a **fine-grained PAT**
+  (resource owner `OpenMasjid-Solutions`, only this repo, *Contents: Read and write*) or a **classic
+  PAT** with the `repo` scope works.
+- The workflow uses `token: ${{ secrets.CATALOG_PUSH_TOKEN || github.token }}`. When the secret is
+  **unset**, it falls back to the default token — the push then fails loudly, and someone with bypass
+  must publish `catalog.json` manually (`npm install && npm run build`, then commit + push).
+
+**Rotate** the token before its expiry. If a Build-catalog run starts failing at the *push* step, an
+expired or revoked `CATALOG_PUSH_TOKEN` is the most likely cause.
+
 ## Licensing
 
 This repository — the catalog tooling, registry, and example scaffolding — is licensed

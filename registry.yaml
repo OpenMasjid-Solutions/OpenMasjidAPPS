@@ -37,8 +37,8 @@ apps:
     commit: f4868a22378ff05d52606c6ec650c6680aa2d277
   - id: donations
     repo: OpenMasjid-Solutions/OpenMasjidDonations
-    ref: v0.21.0                                 # release line; commit (below) is the immutable pin (adds the @sha256 image digest)
-    commit: 6c4e37d9c3e6ec5acfdf789497132ed4367402e5
+    ref: v0.22.0                                 # security release: ships the CSV formula/DDE-injection fix (committed after v0.21.0's pin, so it never reached a built image) + a test lock; commit below is the immutable pin (adds the @sha256 image digest)
+    commit: 593ad8a03cd7916cf8b50c27de394a86a4bb15ca
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

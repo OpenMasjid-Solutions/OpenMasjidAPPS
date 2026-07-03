@@ -41,8 +41,8 @@ apps:
     commit: 593ad8a03cd7916cf8b50c27de394a86a4bb15ca
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: main                                    # early build (slices 1–2: themed admin shell + OpenMasjidOS SSO/auth). In-person Stripe Terminal payments land in later slices; bump the commit pin as they ship.
-    commit: a04bc58c621f78fc025b8819cd205ea46e3cb78f   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: main                                    # early build: OpenMasjidOS-style admin (bottom dock + profile menu + live wallpaper inheritance) + SSO/auth. In-person Stripe Terminal payments land in later slices; the commit pin is bumped per build.
+    commit: 874277c2d3b5c0ba16bbb4dd50c542941bd0d066   # immutable pin; the app's compose pins the @sha256 image digest
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

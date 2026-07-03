@@ -41,8 +41,8 @@ apps:
     commit: 593ad8a03cd7916cf8b50c27de394a86a4bb15ca
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.2.1                                  # v0.2.1 — inherit the OpenMasjidOS wallpaper (HTTPS image proxy) + Payments setup. Bumped per release.
-    commit: 2279b4adaba9f83f244c9e7f1d6ef09ceefd2909   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.3.0                                  # v0.3.0 — device pairing (6-digit), kiosk lock-task + PIN, fleet management + heartbeats. Bumped per release.
+    commit: 24a86ae8022692c1537ec1c4594ac4f5128160b2   # immutable pin; the app's compose pins the @sha256 image digest
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

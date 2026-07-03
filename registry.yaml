@@ -41,8 +41,8 @@ apps:
     commit: 593ad8a03cd7916cf8b50c27de394a86a4bb15ca
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.3.1                                  # v0.3.1 — fix tablet pairing (response envelope), remove-device, http→https redirect. Bumped per release.
-    commit: 8fa8cd230af2582d18f993bc6301b625b954a194   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.3.2                                  # v0.3.2 — OS wallpaper proxy now tolerates any image content-type + relative paths. Bumped per release.
+    commit: dcc2fc8e77f7e11d0ec187854dcef79fab04541d   # immutable pin; the app's compose pins the @sha256 image digest
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

@@ -33,8 +33,8 @@
 apps:
   - id: display
     repo: OpenMasjid-Solutions/OpenMasjidDisplay
-    ref: v0.48.0                                 # custom Gold accent colour picker (primary + gold + text all customizable)
-    commit: 8cc13085ca322ddd192d607d824abda746f04e5a
+    ref: v0.49.0                                 # fix: NEXT PRAYER ring no longer shows a full circle during the after-Fajr (Sunrise→Dhuhr) gap
+    commit: 1a1300c8775e044ce8b6a15bd67eddd23c59702b
   - id: donations
     repo: OpenMasjid-Solutions/OpenMasjidDonations
     ref: v0.22.0                                 # security release: ships the CSV formula/DDE-injection fix (committed after v0.21.0's pin, so it never reached a built image) + a test lock; commit below is the immutable pin (adds the @sha256 image digest)

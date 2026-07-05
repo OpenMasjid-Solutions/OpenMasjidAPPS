@@ -41,8 +41,8 @@ apps:
     commit: 593ad8a03cd7916cf8b50c27de394a86a4bb15ca
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.3.2                                  # v0.3.2 — OS wallpaper proxy now tolerates any image content-type + relative paths. Bumped per release.
-    commit: dcc2fc8e77f7e11d0ec187854dcef79fab04541d   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.4.0                                  # v0.4.0 — Stripe Reader M2 (Bluetooth + USB + simulated); wallpaper proxy SSRF/SVG/DoS hardening. Bumped per release.
+    commit: 597d7ab4344f2af02b08fb21adb9119fff9d57dd   # immutable pin; the app's compose pins the @sha256 image digest
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

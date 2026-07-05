@@ -41,8 +41,8 @@ apps:
     commit: 593ad8a03cd7916cf8b50c27de394a86a4bb15ca
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.4.1                                  # v0.4.1 — OS wallpaper inherits like the other apps (raw URL, no proxy); bolder + faster Identify. Bumped per release.
-    commit: 729a0c2a321d3fce2a64540f70ea5040be4fddf4   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.4.2                                  # v0.4.2 — OS wallpaper always inherits (decoupled from the manual light/dark toggle). Bumped per release.
+    commit: b56d1bb53b5052618a35439c571eb668c0e33802   # immutable pin; the app's compose pins the @sha256 image digest
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

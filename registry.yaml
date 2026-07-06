@@ -41,7 +41,7 @@ apps:
     commit: 593ad8a03cd7916cf8b50c27de394a86a4bb15ca
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.7.0                                  # v0.7.0 — giving-screen designer (live preview + live push), USB reader auto-connect/auto-reconnect, device-owner kiosk hardening (blocks notification shade/nav, PIN-only exit). Bumped per release.                                  # v0.6.0 — monthly donations (Stripe subscription from the card-present charge) + browser-based app update (webui + 7-tap) + clearer thank-you/logging; dark tablet; portaled logs. Bumped per release.
+    ref: v0.7.0                                  # v0.7.0 — giving-screen designer + USB reader auto-connect/auto-reconnect + device-owner kiosk hardening. Bumped per release.
     commit: d089f791c0f883e9b84c33520b79e1bbedf40714   # immutable pin; the app's compose pins the @sha256 image digest
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display

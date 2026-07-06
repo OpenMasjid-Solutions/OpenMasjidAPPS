@@ -41,8 +41,8 @@ apps:
     commit: 593ad8a03cd7916cf8b50c27de394a86a4bb15ca
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.5.3                                  # v0.5.3 — activity log is a draggable window. Bumped per release.
-    commit: c5dbaa20a066b309c9650751ef193647feed3e43   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.5.4                                  # v0.5.4 — 7-tap settings gesture + uptime; reader firmware-update logging. Bumped per release.
+    commit: 220b640164673a02c029db52aac6717062335d8e   # immutable pin; the app's compose pins the @sha256 image digest
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

@@ -41,8 +41,8 @@ apps:
     commit: 593ad8a03cd7916cf8b50c27de394a86a4bb15ca
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.4.4                                  # v0.4.4 — remote Restart from admin; battery indicator removed (wall-powered). Bumped per release.
-    commit: 1a8b1753cde950f1856eec452560fd453ad453f5   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.4.5                                  # v0.4.5 — removed the Restart button (apps cannot reboot a non-device-owner tablet). Bumped per release.
+    commit: d4f0d4ee8ba4653636f798ae01579eccfe3618b2   # immutable pin; the app's compose pins the @sha256 image digest
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

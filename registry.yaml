@@ -41,8 +41,8 @@ apps:
     commit: 593ad8a03cd7916cf8b50c27de394a86a4bb15ca
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.5.0                                  # v0.5.0 — one-time donations on the tablet (giving flow: amounts, numpad, details, reader collect, thank-you). Bumped per release.
-    commit: aca55c9c35c2af499c91682f0f0e030564b63b0b   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.5.1                                  # v0.5.1 — dashboard kiosk count, logs open as a window, reader-connect diagnostics. Bumped per release.
+    commit: 0af86da13b0af099bb2dcad1a3c1ba524f9b4398   # immutable pin; the app's compose pins the @sha256 image digest
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

@@ -41,8 +41,8 @@ apps:
     commit: 593ad8a03cd7916cf8b50c27de394a86a4bb15ca
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.5.1                                  # v0.5.1 — dashboard kiosk count, logs open as a window, reader-connect diagnostics. Bumped per release.
-    commit: 0af86da13b0af099bb2dcad1a3c1ba524f9b4398   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.5.2                                  # v0.5.2 — push app updates to a kiosk from the admin panel. Bumped per release.
+    commit: 62f5a1b524e0a74cde97ffd338a39507b06aeecb   # immutable pin; the app's compose pins the @sha256 image digest
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

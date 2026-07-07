@@ -41,8 +41,8 @@ apps:
     commit: 593ad8a03cd7916cf8b50c27de394a86a4bb15ca
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.7.0                                  # v0.7.0 — giving-screen designer + USB reader auto-connect/auto-reconnect + device-owner kiosk hardening. Bumped per release.
-    commit: d089f791c0f883e9b84c33520b79e1bbedf40714   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.7.1                                  # v0.7.1 — stable APK signing (updates install over the top, no re-pair) + real single-app kiosk for non-device-owner (re-launch on leave, not screen pinning). Bumped per release.
+    commit: b8ae007dc49d7b26d3f71112de73546737528328   # immutable pin; the app's compose pins the @sha256 image digest
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

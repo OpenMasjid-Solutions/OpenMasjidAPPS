@@ -41,8 +41,8 @@ apps:
     commit: d451e1068bd4f1712a6f5a9f2f329e7fa9d1973f
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.8.0                                  # v0.8.0 — donations log + totals (today/week/month/all-time, per-kiosk) + injection-safe CSV export; new Donations tab. Bumped per release.
-    commit: 5f1d7c7ffce63601a2942e64fb747da880926953   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.8.2                                  # v0.8.2 — Exit kiosk hands Home back to the tablet's own launcher (truly leaves even when the kiosk is the device-owner Home app) + "Open Android settings" in the PIN-protected maintenance screen. Bumped per release.
+    commit: 227561a9c5c606ac5b4624d19d94b0dd25f04501   # immutable pin; the app's compose pins the @sha256 image digest
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

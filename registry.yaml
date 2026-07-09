@@ -41,8 +41,8 @@ apps:
     commit: d451e1068bd4f1712a6f5a9f2f329e7fa9d1973f
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.9.1                                  # v0.9.1 — hotfix: 0.9.0 failed to start on existing installs (donations 'campaign_id' column indexed before it was added by migration); upgrade now migrates cleanly. On top of 0.9.0's multi-campaign tabs.
-    commit: 77308ab40a0176ba3f9645f4d5ea73ed6dc3559f   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.9.2                                  # v0.9.2 - keyed (typed) card entry always available when paying + global 7-tap maintenance gesture + amount-screen cleanup, on top of 0.9.x multi-campaign. Bumped per release.
+    commit: 890e16ff0dfa6324ebaf60ec8bac5c2758dba033   # immutable pin; the app's compose pins the @sha256 image digest
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

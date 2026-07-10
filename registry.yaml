@@ -41,8 +41,8 @@ apps:
     commit: d451e1068bd4f1712a6f5a9f2f329e7fa9d1973f
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.9.3                                  # v0.9.3 - bright full-screen GiveALittle giving UI + max brightness + per-campaign appearance; fix keyed card entry on locked-down kiosks (3DS browser was blocked by lock task); bigger campaign editor + donation-detail window. Bumped per release.
-    commit: 4f3369a28cb5d281844f393577e3441084f2964a   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.9.4                                  # v0.9.4 - keyed card entry via in-app Stripe.js Payment Element (works on locked-down kiosks; PaymentSheet 3DS browser was blocked by lock task) + liquid-glass giving card (6 big buttons + small Other) + cover-fee on the details step. Bumped per release.
+    commit: 97df27dced436ed42569a8d684ec762656a42ec4   # immutable pin; the app's compose pins the @sha256 image digest
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

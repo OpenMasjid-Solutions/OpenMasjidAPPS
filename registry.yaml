@@ -41,8 +41,8 @@ apps:
     commit: d451e1068bd4f1712a6f5a9f2f329e7fa9d1973f
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.9.6                                  # v0.9.6 - liquid-glass amount tiles (soft rim-light border) + editable bottom tagline + cover-fee note clarifies it is the card-network (Visa/MC/Amex) fee, not a platform fee. Bumped per release.
-    commit: 71c49e46475821f2dd48636c29e9149a83ae13a3   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.9.7                                  # v0.9.7 - fix the keyed-entry card page (opaque full-screen Stripe Payment Element, never clipped) + donation-in-progress countdown ring (returns to menu on inactivity) + softer glass tiles. Bumped per release.
+    commit: 035d98533023a11e995789e63f5c6d670856f264   # immutable pin; the app's compose pins the @sha256 image digest
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

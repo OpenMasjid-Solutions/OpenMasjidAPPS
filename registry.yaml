@@ -41,8 +41,8 @@ apps:
     commit: d451e1068bd4f1712a6f5a9f2f329e7fa9d1973f
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.9.9                                  # v0.9.9 - bigger two-tone amount buttons (large number + solid "Donate" band, readable contrast), seamless "Enter card details" (no "Sorry" flash before the card page), and a more reliable card reader (periodic health checks reconnect it after a silent drop). Bumped per release.
-    commit: 2b2d67a7f887506c3b004eef5065d29598e6913a   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.9.10                                 # v0.9.10 - two-colour theming (a primary background + an accent for the "Donate" band/buttons), big bold black amount numbers with a slight glass sheen, the campaign logo now shows on the giving screen, and an optional fireworks celebration on the thank-you screen (per-amount threshold). Bumped per release.
+    commit: 7eda4bdd8f4b07c908c059dbccdb8c89b9ec2b4d   # immutable pin; the app's compose pins the @sha256 image digest
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

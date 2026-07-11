@@ -41,8 +41,8 @@ apps:
     commit: d451e1068bd4f1712a6f5a9f2f329e7fa9d1973f
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.9.7                                  # v0.9.7 - fix the keyed-entry card page (opaque full-screen Stripe Payment Element, never clipped) + donation-in-progress countdown ring (returns to menu on inactivity) + softer glass tiles. Bumped per release.
-    commit: 035d98533023a11e995789e63f5c6d670856f264   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.9.8                                  # v0.9.8 - Zakat "require donors to cover card fees" (donor told it's because it's Zakat), large-donation alternative (bank transfer / Zelle QR shown before the card, still lets you pay by card), flat de-glassed giving UI. Bumped per release.
+    commit: b8b0bc66617ef958943e4b9b02436016a273bc88   # immutable pin; the app's compose pins the @sha256 image digest
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

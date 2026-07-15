@@ -37,8 +37,8 @@ apps:
     commit: 3957ffc87066d046caf0fa987002b800dae3380a
   - id: donations
     repo: OpenMasjid-Solutions/OpenMasjidDonations
-    ref: v0.24.0                                 # required campaign type (Donation/Zakat/Tuition) with fee rules + a global large-donation alternative; commit below is the immutable pin (adds the @sha256 image digest)
-    commit: 0dca8dc8bdc414106ec4339413197dd1989529e7
+    ref: v0.25.0                                 # embeddable per-campaign donation widget (/w/<slug>, copy-paste iframe); commit below is the immutable pin (adds the @sha256 image digest)
+    commit: 26b9b6325139763e5af525b9c53e9c3dd2763aef
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
     ref: v0.9.11                                 # v0.9.11 - amount numbers now fill the tile (responsive, bold) with a taller, bolder "Donate" button; campaign tabs are colour-coded by each campaign's own colour and are larger/clearer; campaign title/description have character limits (live counter) so nothing is cut off on the kiosk. Bumped per release.

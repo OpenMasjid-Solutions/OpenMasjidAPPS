@@ -37,8 +37,8 @@ apps:
     commit: 1c97d142892ec88cc538545f8c3ac685e8351501
   - id: donations
     repo: OpenMasjid-Solutions/OpenMasjidDonations
-    ref: v0.23.0                                 # fix: create a campaign with only a Fabric (OpenMasjidOS-vault) Stripe account — the client gate ignored the Fabric account; commit below is the immutable pin (adds the @sha256 image digest)
-    commit: d451e1068bd4f1712a6f5a9f2f329e7fa9d1973f
+    ref: v0.24.0                                 # required campaign type (Donation/Zakat/Tuition) with fee rules + a global large-donation alternative; commit below is the immutable pin (adds the @sha256 image digest)
+    commit: 0dca8dc8bdc414106ec4339413197dd1989529e7
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
     ref: v0.9.11                                 # v0.9.11 - amount numbers now fill the tile (responsive, bold) with a taller, bolder "Donate" button; campaign tabs are colour-coded by each campaign's own colour and are larger/clearer; campaign title/description have character limits (live counter) so nothing is cut off on the kiosk. Bumped per release.

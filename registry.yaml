@@ -33,8 +33,8 @@
 apps:
   - id: display
     repo: OpenMasjid-Solutions/OpenMasjidDisplay
-    ref: v0.56.0                                 # release line; commit (below) is the immutable pin (v0.56.0: calendar editor for per-day Iqamah changes; Maghrib always uses the calculated sunset + its offset, thrown out of CSV imports)
-    commit: 1c97d142892ec88cc538545f8c3ac685e8351501
+    ref: v0.57.0                                 # release line; commit (below) is the immutable pin (v0.57.0: admin UI matches the sibling apps — wallpaper tint + rounded-square account avatar)
+    commit: fb6af811c37149c1c598e89820dc87b20c5b8bf5
   - id: donations
     repo: OpenMasjid-Solutions/OpenMasjidDonations
     ref: v0.24.0                                 # required campaign type (Donation/Zakat/Tuition) with fee rules + a global large-donation alternative; commit below is the immutable pin (adds the @sha256 image digest)

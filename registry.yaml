@@ -33,8 +33,8 @@
 apps:
   - id: display
     repo: OpenMasjid-Solutions/OpenMasjidDisplay
-    ref: v0.54.0                                 # release line; commit (below) is the immutable pin (v0.54.0: Settings toggle — on by default — to serve the volunteer page over remote access, or keep it LAN-only)
-    commit: 8c13b1f98f0098e70806fccda4aafb28e4388275
+    ref: v0.55.0                                 # release line; commit (below) is the immutable pin (v0.55.0: per-day Maghrib Iqamah can be a +/- minutes offset from the adhan in CSV/overrides, so it tracks sunset year-round)
+    commit: 35d38b73fc3d12f347681dd69ef704d74bfef4b2
   - id: donations
     repo: OpenMasjid-Solutions/OpenMasjidDonations
     ref: v0.23.0                                 # fix: create a campaign with only a Fabric (OpenMasjidOS-vault) Stripe account — the client gate ignored the Fabric account; commit below is the immutable pin (adds the @sha256 image digest)

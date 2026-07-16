@@ -43,6 +43,10 @@ apps:
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
     ref: v0.9.12                                 # v0.9.12 - each campaign now has a required Type (Donation/Zakat/Tuition) that sets the card-fee rule: Donation can offer fee-covering, Zakat always covers it (full Zakat reaches the masjid), Tuition lets you require it. Bumped per release.
     commit: 752af2ccb82fc8144a825013a562799891af611d   # immutable pin; the app's compose pins the @sha256 image digest
+  - id: students
+    repo: OpenMasjid-Solutions/OpenMasjidStudentManager
+    ref: main                                    # v0.1.0 app shell (step 1: SIS/grades/report cards/tuition to follow); commit below is the immutable pin, and the app's compose pins the @sha256 image digest
+    commit: 423bea02f5ee29464f18e39c74c3f37591021aac
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display
@@ -54,8 +58,4 @@ apps:
 # Coming-soon teasers — apps that aren't released yet (no repo/image). They show
 # in the App Store with a "Coming soon" badge and can't be installed. Metadata
 # only here; when one ships, give it a repo + tag and move it up into `apps:`.
-coming_soon:
-  - id: student-manager
-    name: OpenMasjid Student Manager
-    tagline: Run your madrasah — students, classes, attendance and progress.
-    category: admin
+coming_soon: []

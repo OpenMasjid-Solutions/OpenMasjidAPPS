@@ -25,6 +25,12 @@ const REGISTRY = 'registry.yaml';
 const APP_ID_RE = /^[a-z0-9][a-z0-9-]{0,79}$/;
 const CATEGORIES = new Set(['displays', 'donations', 'community', 'quran', 'admin', 'utilities']);
 
+// Fabric app-to-app broker shapes — mirror OpenMasjidOS's parseFabric
+// (packages/core/src/apps/manager.ts): a capability is a kebab slug; a consume
+// grant is "<app-id>/<capability>".
+const CAPABILITY_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
+const GRANT_RE = /^[a-z0-9][a-z0-9-]{0,79}\/[a-z0-9][a-z0-9-]{0,39}$/;
+
 // A full git commit SHA — 40 lowercase hex chars. Pinning a registry entry to one
 // of these is the ONLY immutable pin: tags and branches are mutable, so a repo
 // owner (or whoever compromises the repo) can move them to backdoored content and
@@ -52,6 +58,45 @@ function fail(msg) {
 function warn(msg) {
   warnings++;
   console.warn(`⚠ ${msg}`);
+}
+
+// Validate + normalise a manifest `fabric:` block (the app-to-app broker). Returns
+// { provides?: [{capability}], consumes?: string[] } — the exact shape the platform
+// consumes — or undefined when there's no (effective) block. fail()s on a bad shape
+// so "passes the catalog build == safe to install" holds. A malformed shape is a
+// hard error (NOT the silent `=== true ? true : undefined` coercion the flags use).
+// Mirrors OpenMasjidOS parseFabric (packages/core/src/apps/manager.ts).
+function parseFabricManifest(id, fabric) {
+  if (fabric == null) return undefined;
+  if (typeof fabric !== 'object' || Array.isArray(fabric)) {
+    fail(`${id}: manifest "fabric" must be an object with "provides" and/or "consumes"`);
+  }
+  const provides = [];
+  if (fabric.provides != null) {
+    if (!Array.isArray(fabric.provides)) fail(`${id}: fabric.provides must be a list`);
+    for (const p of fabric.provides) {
+      const cap = p && typeof p === 'object' ? p.capability : undefined;
+      if (typeof cap !== 'string' || !CAPABILITY_RE.test(cap)) {
+        fail(`${id}: each fabric.provides entry needs a kebab-case "capability" (a-z, 0-9, -)`);
+      }
+      provides.push(cap);
+    }
+  }
+  const consumes = [];
+  if (fabric.consumes != null) {
+    if (!Array.isArray(fabric.consumes)) fail(`${id}: fabric.consumes must be a list`);
+    for (const c of fabric.consumes) {
+      if (typeof c !== 'string' || !GRANT_RE.test(c.trim())) {
+        fail(`${id}: each fabric.consumes entry must be "<app-id>/<capability>" (kebab-case)`);
+      }
+      consumes.push(c.trim());
+    }
+  }
+  if (!provides.length && !consumes.length) return undefined;
+  const out = {};
+  if (provides.length) out.provides = provides.map((capability) => ({ capability }));
+  if (consumes.length) out.consumes = consumes;
+  return out;
 }
 
 async function fetchText(url) {
@@ -154,6 +199,12 @@ for (const entry of entries) {
   if (m.category && !CATEGORIES.has(m.category)) {
     fail(`${id}: unknown category "${m.category}" (use: ${[...CATEGORIES].join(', ')})`);
   }
+  // Fabric app-to-app broker grants + tunnel-exposure request (validated here so a
+  // malformed shape fails the build rather than silently dropping).
+  const fabric = parseFabricManifest(id, m.fabric);
+  if (m.tunnel != null && typeof m.tunnel !== 'boolean') {
+    fail(`${id}: manifest "tunnel" must be true or false`);
+  }
   const composeCheck = validateCompose(composeText);
   if (composeCheck.errors.length) {
     fail(`${id}: docker-compose.yml has disallowed settings:\n   - ${composeCheck.errors.join('\n   - ')}\n   See docs/BUILDING_AN_APP.md §2b (Security requirements).`);
@@ -203,6 +254,12 @@ for (const entry of entries) {
     // Require HTTPS — set ONLY by apps that use Stripe (they need a secure
     // context). The platform serves such an app on a dedicated HTTPS port.
     https: m.https === true ? true : undefined,
+    // App-to-app broker grants (provides/consumes) — the platform issues the
+    // per-app secret and brokers POST /api/fabric/app/<target>/<cap>/<method>.
+    fabric,
+    // Request internet exposure through the OS's Cloudflare tunnel (the admin still
+    // confirms per-app in Settings). Off ⇒ the app stays on the LAN.
+    tunnel: m.tunnel === true ? true : undefined,
     compose: composeText,
   });
   console.log(`✓ ${id} ← ${repo}@${fetchRef}${immutable ? '' : ' (mutable ref)'}`);

@@ -147,7 +147,16 @@ ports:
   - container: 80
     label: Web interface
 # sso: true                         # OPTIONAL — opt into single sign-on (see §7)
+# notifications: true               # OPTIONAL — relay messages to the masjid's webhook (see §7)
+# stripe: true                      # OPTIONAL — fetch shared Stripe keys from the OS vault (see §7)
+# domain: true                      # OPTIONAL — learn your public URL via /api/fabric/site (see §7)
 # https: true                       # ONLY if your app uses Stripe (needs HTTPS) — see §2b.5
+# fabric:                           # OPTIONAL — app-to-app broker (see §7). Catalog apps only.
+#   provides:                       #   capabilities you SERVE at /fabric/<capability>/<method>
+#     - capability: billing         #   kebab-case
+#   consumes:                       #   capabilities you may CALL, "<target-app-id>/<capability>"
+#     - students/billing
+# tunnel: true                      # OPTIONAL — REQUEST internet exposure (admin confirms in Settings)
 ```
 
 Field types: `text` | `number` | `password` | `boolean` | `select` (needs `options`). Use
@@ -418,6 +427,50 @@ strip the prefix), so your server receives requests under `basePath` (e.g. `/don
 your routes and emit your asset/link URLs under `basePath` so they resolve behind the tunnel. Read it
 from `/api/fabric/site` (above); when `basePath` is `""` (no remote access, or accessed directly on the
 LAN) serve at root as usual. A static SPA should set its base href / router basename from it.
+
+### App-to-app broker — opt in with `fabric:` *(platform v0.40.0+)*
+
+Sometimes one app needs to call another (e.g. a donations page asking a students app for a family's
+balance). The platform brokers this so apps never learn each other's addresses or secrets. Declare a
+`fabric` block — the platform then issues your per-app secret:
+
+```yaml
+fabric:
+  provides:                 # capabilities YOU serve at /fabric/<capability>/<method>
+    - capability: billing   # kebab-case
+  consumes:                 # capabilities you may CALL, "<target-app-id>/<capability>"
+    - students/billing
+```
+
+- **Calling** (your backend) — both sides must agree (you `consumes` it, the target `provides` it):
+
+  ```
+  POST ${OPENMASJID_BASE_URL}/api/fabric/app/<targetAppId>/<capability>/<method>
+    X-OpenMasjid-App-Secret: <OPENMASJID_APP_SECRET>   (YOUR secret)
+    Content-Type: application/json
+    { …json… }
+  → the target's status + JSON on success; on a platform failure:
+    { "fabric_error": { "code": "not_granted"|"target_unreachable"|… } }
+  ```
+  JSON only, ≤256 KB each way, 10 s timeout. **Fail soft**: treat every `fabric_error` as "feature
+  unavailable, app still fine" (hide the tab, queue and retry) — never crash.
+
+- **Providing** — mount your served capabilities at `/fabric/<capability>/<method>`. Trust the
+  platform-set headers only: verify `X-OpenMasjid-App-Secret` equals **your own** `OPENMASJID_APP_SECRET`
+  (proves the call came from the platform), and read `X-OpenMasjid-Caller-App` for the caller's id. Your
+  `/fabric/*` routes are refused over the public tunnel by the platform — enforce it yourself too.
+
+Grants are static from this manifest (no admin approval step). Broker calls are catalog-app ↔
+catalog-app only.
+
+### Internet exposure — request it with `tunnel: true` *(platform v0.40.0+)*
+
+Exposure over the Cloudflare tunnel is **per-app opt-in** as of v0.40.0. Set `tunnel: true` to *request*
+that your app be reachable from the internet; the **admin confirms** it per-app in Settings → Remote
+access (default off for new installs; apps installed before v0.40.0 keep their prior reachability).
+Everything in the `domain:` section above still applies — read your public URL from `/api/fabric/site`
+(and `OPENMASJID_PUBLIC_URL`, injected empty when you're not exposed). Nothing is public without the
+admin's toggle.
 
 ### Restore & migration resilience — REQUIRED for every Fabric app
 

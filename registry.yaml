@@ -45,8 +45,8 @@ apps:
     commit: 752af2ccb82fc8144a825013a562799891af611d   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.1.0 app shell (step 1: SIS/grades/report cards/tuition to follow). One-click install (no settings); commit below is the immutable pin, and the app's compose pins the @sha256 image digest
-    commit: bff1ac61bc34c5f0706d779b4cf4f9bb779e746d
+    ref: main                                    # v0.2.0 — auth + LAN-only origin policy (SIS/grades/report cards/tuition to follow). One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
+    commit: 529b43d5537165195cb66369fa29353ea8ce476a
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

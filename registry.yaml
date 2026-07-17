@@ -45,8 +45,8 @@ apps:
     commit: 07d4842f5f22a0d6c40c335625de97ff02e8ad40   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.9.0 — merit points: award/deduct against admin-defined categories (Ādāb / Sunnah practice / Hifz milestone / Helping others), class leaderboard, undo, for teachers + admin. One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
-    commit: d9aa6a1e34c4c66221b0d51272ab2b06f8dabb87
+    ref: main                                    # v0.10.0 — exams: admin defines a term's exams + assigns to classes (snapshots subjects + max marks); teacher score grid (mark / absent / exempt) + term remarks + completion dashboard. One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
+    commit: 3f41a5a10c5cd2d10bf0f34a147d3965d051b6cb
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

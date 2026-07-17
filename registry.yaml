@@ -33,8 +33,8 @@
 apps:
   - id: display
     repo: OpenMasjid-Solutions/OpenMasjidDisplay
-    ref: v0.58.0                                 # release line; commit (below) is the immutable pin (v0.58.0: admin chrome standardized to the sibling apps — dark scene in both themes, filled-glass avatar, luminance-aware on-scene text)
-    commit: 72d041083cdcea02cc3dc19d4725b1612b06c8e8
+    ref: v0.59.0                                 # release line; commit (below) is the immutable pin (v0.59.0: preview a chosen date to verify future per-day Iqamah changes; hardened invalid-timezone + far-east date handling)
+    commit: a2f58da7f844f6676e6a5a17c89f226b281a34df
   - id: donations
     repo: OpenMasjid-Solutions/OpenMasjidDonations
     ref: v0.25.0                                 # embeddable per-campaign donation widget (/w/<slug>, copy-paste iframe); commit below is the immutable pin (adds the @sha256 image digest)

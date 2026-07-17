@@ -41,8 +41,8 @@ apps:
     commit: 26b9b6325139763e5af525b9c53e9c3dd2763aef
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.9.12                                 # v0.9.12 - each campaign now has a required Type (Donation/Zakat/Tuition) that sets the card-fee rule: Donation can offer fee-covering, Zakat always covers it (full Zakat reaches the masjid), Tuition lets you require it. Bumped per release.
-    commit: 752af2ccb82fc8144a825013a562799891af611d   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.9.13                                 # v0.9.13 - portrait-friendly giving screen; set each kiosk's screen orientation from the web (Admin → Devices); choose which kiosks a campaign shows on; one-tap colour theme presets. Bumped per release.
+    commit: 07d4842f5f22a0d6c40c335625de97ff02e8ad40   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
     ref: main                                    # v0.6.0 — weekly timetable (by class/teacher/student, soft conflict warnings) + teacher app (My week / My classes, server-side scoping). One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest

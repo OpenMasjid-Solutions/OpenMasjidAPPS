@@ -41,8 +41,8 @@ apps:
     commit: 26b9b6325139763e5af525b9c53e9c3dd2763aef
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.9.13                                 # v0.9.13 - portrait-friendly giving screen; set each kiosk's screen orientation from the web (Admin → Devices); choose which kiosks a campaign shows on; one-tap colour theme presets. Bumped per release.
-    commit: 07d4842f5f22a0d6c40c335625de97ff02e8ad40   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.9.14                                 # v0.9.14 - typed card entry is card-only (no Link / bank-account option); web-set screen orientation applied more reliably at the app level. Bumped per release.
+    commit: ffa8c825bd4d4dc226ab6f9b9fc4fdbf94108e5f   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
     ref: main                                    # v0.10.0 — exams: admin defines a term's exams + assigns to classes (snapshots subjects + max marks); teacher score grid (mark / absent / exempt) + term remarks + completion dashboard. One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest

@@ -45,8 +45,8 @@ apps:
     commit: 07d4842f5f22a0d6c40c335625de97ff02e8ad40   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.6.0 — weekly timetable (by class/teacher/student, soft conflict warnings) + teacher app (My week / My classes, server-side scoping). One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
-    commit: b6aa985d45aa96755e75e312ad8df295a3341dee
+    ref: main                                    # v0.7.0 — daily attendance (present/late/absent/excused, bulk all-present, audited edits+backfills) for teachers + admin. One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
+    commit: 08154d1a41006962ba16a3d1e100870ce0723c5e
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

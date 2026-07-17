@@ -45,8 +45,8 @@ apps:
     commit: 07d4842f5f22a0d6c40c335625de97ff02e8ad40   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.7.0 — daily attendance (present/late/absent/excused, bulk all-present, audited edits+backfills) for teachers + admin. One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
-    commit: 08154d1a41006962ba16a3d1e100870ce0723c5e
+    ref: main                                    # v0.8.0 — gradebook: assignments, scores, grading scales + bands (Percentage / A–F / Mumtāz–Rāsib), per-class scale, overall % + band, for teachers + admin. One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
+    commit: 6d43200221d11a6f80c917e5fa5d18763a89d67a
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

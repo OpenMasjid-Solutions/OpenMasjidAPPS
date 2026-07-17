@@ -45,8 +45,8 @@ apps:
     commit: 752af2ccb82fc8144a825013a562799891af611d   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.5.0 — classes/terms/enrollments + staff accounts + the family dock-and-windows shell (+ SIS, records, auth). One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
-    commit: db4e265cb2353669bf08d537ab8914a4b40a75c1
+    ref: main                                    # v0.5.1 — classes/staff + family dock-and-windows shell (app-style top-bar chrome). One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
+    commit: 1524a818f2d0b784c99a8f0c025241bb8226ee03
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

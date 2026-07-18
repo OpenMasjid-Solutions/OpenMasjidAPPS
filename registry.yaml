@@ -45,8 +45,8 @@ apps:
     commit: 34e777dfa113283351ecace8e5e69db69ed2c4af   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.17.0 — parent portal now shows each child's published report cards and transcripts, downloadable right from the family home (published-only, own-kids). One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
-    commit: 2344d7abe9f856caf0e8fa9f067e67ddcdf901d4
+    ref: main                                    # v0.18.0 — parent portal: tap a child to see their grades, attendance, and merit points (read-only, own-kids). One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
+    commit: 0cd63cb7dcc5ab4ab7bbb49ca22e396e4dea8c42
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

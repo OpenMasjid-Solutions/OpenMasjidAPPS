@@ -45,8 +45,8 @@ apps:
     commit: 3fe32914beb2d71f7978b7a3b04561d283160c56   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.13.0 — comment bank: reusable remark snippets (shared + each teacher's personal), inserted into term remarks; shared bank managed in Settings. One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
-    commit: fd4459f4097cbaf4b6a40e38cc33054af0143122
+    ref: main                                    # v0.14.0 — billing core: fee plans, per-family discount, invoice generation, the ledger (derived balances, oldest-due-first allocation, immutable payments + reversals), manual payments, and a finance role app. One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
+    commit: d3396f7fa11e170d0401546b343dd96abc0fb782
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

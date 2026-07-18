@@ -41,8 +41,8 @@ apps:
     commit: 26b9b6325139763e5af525b9c53e9c3dd2763aef
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.9.15                                 # v0.9.15 - screen rotation that works on any tablet: the kiosk rotates its OWN UI by 0/90/180/270° (Admin → Devices), instead of asking the tablet (which many ignore). Bumped per release.
-    commit: dc23bce4e2dda85f15dc52f8e1a3b9b72228d03e   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.9.16                                 # v0.9.16 - the donor name/email step now uses the kiosk's OWN on-screen keyboard, which rotates with the screen (the system keyboard appeared sideways on a rotated kiosk). Bumped per release.
+    commit: 3fe32914beb2d71f7978b7a3b04561d283160c56   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
     ref: main                                    # v0.13.0 — comment bank: reusable remark snippets (shared + each teacher's personal), inserted into term remarks; shared bank managed in Settings. One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest

@@ -45,8 +45,8 @@ apps:
     commit: dc23bce4e2dda85f15dc52f8e1a3b9b72228d03e   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.12.0 — term close → frozen finals → cumulative multi-year transcripts (versioned PDF, authed serving); closed-term marks lock; single final-grade math shared with report cards. One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
-    commit: 2aceafaa0a6d3fba88cf61a3a33a9f7a08e53f0f
+    ref: main                                    # v0.13.0 — comment bank: reusable remark snippets (shared + each teacher's personal), inserted into term remarks; shared bank managed in Settings. One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
+    commit: fd4459f4097cbaf4b6a40e38cc33054af0143122
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

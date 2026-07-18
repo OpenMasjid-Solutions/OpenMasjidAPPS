@@ -41,8 +41,8 @@ apps:
     commit: 26b9b6325139763e5af525b9c53e9c3dd2763aef
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.9.14                                 # v0.9.14 - typed card entry is card-only (no Link / bank-account option); web-set screen orientation applied more reliably at the app level. Bumped per release.
-    commit: ffa8c825bd4d4dc226ab6f9b9fc4fdbf94108e5f   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.9.15                                 # v0.9.15 - screen rotation that works on any tablet: the kiosk rotates its OWN UI by 0/90/180/270° (Admin → Devices), instead of asking the tablet (which many ignore). Bumped per release.
+    commit: dc23bce4e2dda85f15dc52f8e1a3b9b72228d03e   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
     ref: main                                    # v0.12.0 — term close → frozen finals → cumulative multi-year transcripts (versioned PDF, authed serving); closed-term marks lock; single final-grade math shared with report cards. One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest

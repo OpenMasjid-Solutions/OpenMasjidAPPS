@@ -45,8 +45,8 @@ apps:
     commit: cb2bb466fee23f68f536a905875d787572b4a5c2   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.15.0 — printable family statements: balance, open invoices, recent payments, each child's PIN, and a QR to the parent-portal signup, on an authed print-CSS route (admin LAN-only / finance LAN+tunnel). One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
-    commit: e3f6542fff48c658be4ef0cfbde143e73c9542d1
+    ref: main                                    # v0.16.0 — parent portal (first slice): finance/admin invite a guardian; the guardian accepts a one-time link, sets a password, and gets a phone-first portal showing their own family's kids, balance, invoices, and payment history. One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
+    commit: ccdf45a1e2149e8d51a32dcea413fe862fe56e2e
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

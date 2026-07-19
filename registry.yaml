@@ -41,8 +41,8 @@ apps:
     commit: 26b9b6325139763e5af525b9c53e9c3dd2763aef
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.9.18                                 # v0.9.18 - reimagined campaign designer: a roomy two-pane editor with tabbed settings and a live, true-to-device preview of BOTH portrait and landscape giving screens; per-campaign kiosk targeting (Kiosks tab, default all) and a Devices page that lists which campaigns each kiosk shows. Admin-only; no tablet update needed. Bumped per release.
-    commit: 34e777dfa113283351ecace8e5e69db69ed2c4af   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.9.19                                 # v0.9.19 - the Add-a-kiosk screen now shows the exact server address to type on the tablet (with Copy + a localhost warning) and labels the pairing code. Admin-only; no tablet update needed. Bumped per release.
+    commit: 2af3cf153a1e471dfbe6ca980601c90948f0d71d   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
     ref: main                                    # v0.23.0 — Fabric students/billing provider: parents pay tuition by child name + PIN at the donation site / kiosk (brokered by the OS core). One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest

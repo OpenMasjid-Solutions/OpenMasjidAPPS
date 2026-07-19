@@ -45,8 +45,8 @@ apps:
     commit: 34e777dfa113283351ecace8e5e69db69ed2c4af   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.22.0 — Report Creator: the office builds its own saved reports over role-scoped datasets (students, invoices, payments, admissions) — columns, filters, sort → table, CSV, print. No raw SQL. One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
-    commit: 38c503702634b9dce067b5c09befc9a5392e9c16
+    ref: main                                    # v0.23.0 — Fabric students/billing provider: parents pay tuition by child name + PIN at the donation site / kiosk (brokered by the OS core). One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
+    commit: bbdd087f7afd33a8579783203baacffe0d364c1b
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

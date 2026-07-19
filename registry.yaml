@@ -41,8 +41,8 @@ apps:
     commit: 26b9b6325139763e5af525b9c53e9c3dd2763aef
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.9.20                                 # v0.9.20 - REMOTE kiosk adoption (server + admin half): pair a tablet at another site over the OS Cloudflare tunnel. Opt-in, off by default; base-path aware; only /new + the device API are exposed over the tunnel (admin panel stays LAN-only). The tablet-app update in the next release completes remote pairing end-to-end. Bumped per release.
-    commit: 2282f9d634355ee73c2c7232d4d03a871cc52f04   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.9.21                                 # v0.9.21 - completes REMOTE adoption on the tablet: a remotely-adopted kiosk pairs over the real (public) Cloudflare certificate with system-CA trust + hostname verification (no warning, cert can rotate); LAN kiosks keep self-signed trust-on-first-use pinning; the tablet picks the mode from the address. Requires a tablet APK update. Bumped per release.
+    commit: c892580ab14cdecfeab1632babba5088efdf9795   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
     ref: main                                    # v0.24.0 — parents can now pay tuition by card right in the portal (Stripe Elements); balances update automatically via a signature-verified webhook. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest

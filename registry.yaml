@@ -45,8 +45,8 @@ apps:
     commit: 2af3cf153a1e471dfbe6ca980601c90948f0d71d   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.23.0 — Fabric students/billing provider: parents pay tuition by child name + PIN at the donation site / kiosk (brokered by the OS core). One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
-    commit: bbdd087f7afd33a8579783203baacffe0d364c1b
+    ref: main                                    # v0.24.0 — parents can now pay tuition by card right in the portal (Stripe Elements); balances update automatically via a signature-verified webhook. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
+    commit: de049bbbfb122108149f0405bd07fe823ef873c7
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

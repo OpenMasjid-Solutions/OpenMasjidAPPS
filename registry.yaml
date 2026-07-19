@@ -45,8 +45,8 @@ apps:
     commit: c892580ab14cdecfeab1632babba5088efdf9795   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.25.0 — parents can now save a card and switch on autopay; tuition is charged automatically when it's due, with clear consent and an email if a charge fails. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
-    commit: 6efc5d2c536bfe58533408b2620f47efe51935cf
+    ref: main                                    # v0.26.0 — adds a payments safety net: finance can reconcile with Stripe (and it runs daily) so any card payment a webhook missed is recovered automatically; money is never lost, only delayed. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
+    commit: 5ccea5c20a04c486cf0b69df266af9d4dd42849d
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

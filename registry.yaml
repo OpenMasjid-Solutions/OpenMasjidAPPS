@@ -45,8 +45,8 @@ apps:
     commit: 34e777dfa113283351ecace8e5e69db69ed2c4af   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.19.0 — parent portal: each child's weekly schedule (a week-at-a-glance timetable), completing the portal read surface (schedule, grades, attendance, merit, report cards, balance). One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
-    commit: 8bdb9ea1660ed890339135c09de1bcce8aa4e2ae
+    ref: main                                    # v0.20.0 — admissions pipeline + one-click enroll: take a family from enquiry to an enrolled, invoiced student in one click (admin + finance). One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
+    commit: f959241851a8ecb07bf58b86d6bc723e47c435af
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

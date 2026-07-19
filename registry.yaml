@@ -45,8 +45,8 @@ apps:
     commit: 34e777dfa113283351ecace8e5e69db69ed2c4af   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.21.0 — public admissions form: a no-login enquiry form (over the tunnel) that lands new applicants in the staff pipeline, hardened against hostile input (zod caps, honeypot, per-IP rate limits, inert storage). One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
-    commit: 972e7ebb4d0021bd34bbd7f153a9607628bf253e
+    ref: main                                    # v0.22.0 — Report Creator: the office builds its own saved reports over role-scoped datasets (students, invoices, payments, admissions) — columns, filters, sort → table, CSV, print. No raw SQL. One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
+    commit: 38c503702634b9dce067b5c09befc9a5392e9c16
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

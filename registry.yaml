@@ -45,8 +45,8 @@ apps:
     commit: c892580ab14cdecfeab1632babba5088efdf9795   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.24.0 — parents can now pay tuition by card right in the portal (Stripe Elements); balances update automatically via a signature-verified webhook. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
-    commit: de049bbbfb122108149f0405bd07fe823ef873c7
+    ref: main                                    # v0.25.0 — parents can now save a card and switch on autopay; tuition is charged automatically when it's due, with clear consent and an email if a charge fails. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
+    commit: 6efc5d2c536bfe58533408b2620f47efe51935cf
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

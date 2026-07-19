@@ -45,8 +45,8 @@ apps:
     commit: 34e777dfa113283351ecace8e5e69db69ed2c4af   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.20.0 — admissions pipeline + one-click enroll: take a family from enquiry to an enrolled, invoiced student in one click (admin + finance). One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
-    commit: f959241851a8ecb07bf58b86d6bc723e47c435af
+    ref: main                                    # v0.21.0 — public admissions form: a no-login enquiry form (over the tunnel) that lands new applicants in the staff pipeline, hardened against hostile input (zod caps, honeypot, per-IP rate limits, inert storage). One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
+    commit: 972e7ebb4d0021bd34bbd7f153a9607628bf253e
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

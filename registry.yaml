@@ -45,8 +45,8 @@ apps:
     commit: c892580ab14cdecfeab1632babba5088efdf9795   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.26.0 — adds a payments safety net: finance can reconcile with Stripe (and it runs daily) so any card payment a webhook missed is recovered automatically; money is never lost, only delayed. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
-    commit: 5ccea5c20a04c486cf0b69df266af9d4dd42849d
+    ref: main                                    # v0.27.0 — teachers, finance and parents can now sign in over the masjid's public web address (admin stays on the local network); the app also matches your OpenMasjidOS wallpaper and light/dark theme. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
+    commit: ebaa22cc02250e49f0cacdb31cee7541cffe533d
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

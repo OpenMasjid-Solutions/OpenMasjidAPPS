@@ -45,8 +45,8 @@ apps:
     commit: c892580ab14cdecfeab1632babba5088efdf9795   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.32.0 — Payments: pick which OpenMasjidOS Stripe account collects tuition (one dropdown); parents pay by card, see history and set up autopay against it, and the same account powers the tuition option on the donation site + kiosk. No webhook setup needed. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
-    commit: 3c97eaa06e77001f4e76989ae43d441353964585
+    ref: main                                    # v0.33.0 — parents can now sign themselves up from the sign-in page using their child's name + PIN + an email you have on file; the app emails them a setup link. Admins can switch this off (default on). One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
+    commit: b40d536a8321ca3412360fdce9a27a4c0942a52f
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

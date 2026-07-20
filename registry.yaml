@@ -45,8 +45,8 @@ apps:
     commit: c892580ab14cdecfeab1632babba5088efdf9795   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.28.0 — email (SMTP): parent invites, payment receipts and autopay notices are now sent automatically when you add your mail settings; without it, invites still work as copy/print links. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
-    commit: 35519880bb6b4169e4be512995ab46ae00965ad4
+    ref: main                                    # v0.29.0 — parents (and staff) can now reset a forgotten password from the sign-in page via an emailed link; without email set up, resets go through the office as before. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
+    commit: 71db7f63252412625b57efd426f0a18bf423839c
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

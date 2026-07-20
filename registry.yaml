@@ -45,8 +45,8 @@ apps:
     commit: c892580ab14cdecfeab1632babba5088efdf9795   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.30.0 — Stripe card payments now set themselves up: when your masjid is online the app registers its own payment webhook automatically, so card payments confirm instantly (with a manual fallback in Settings → Payments). One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
-    commit: a2e49b2d25f088612c8dad5c4eaf8144fbebb041
+    ref: main                                    # v0.31.0 — accessibility & right-to-left polish across the newest screens (the autopay toggle now respects reduced-motion). One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
+    commit: e8cfeac905ddb22329f0fa58bbd0ae8046f335c5
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

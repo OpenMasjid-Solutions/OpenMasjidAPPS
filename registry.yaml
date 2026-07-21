@@ -37,8 +37,8 @@ apps:
     commit: 254b4e1768b80e0b8aaf3f32b737fc837424f58c
   - id: donations
     repo: OpenMasjid-Solutions/OpenMasjidDonations
-    ref: v0.25.0                                 # embeddable per-campaign donation widget (/w/<slug>, copy-paste iframe); commit below is the immutable pin (adds the @sha256 image digest)
-    commit: 26b9b6325139763e5af525b9c53e9c3dd2763aef
+    ref: v0.26.0                                 # tuition campaign type is now a billing shell over the OpenMasjid Students app (name+PIN -> family balance -> pay -> recorded in Students, via the OS app-to-app broker); commit below is the immutable pin (@sha256 image digest)
+    commit: ddd2b6f5c4a3eef402c19442ab3f0368a351e252
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
     ref: v0.9.21                                 # v0.9.21 - completes REMOTE adoption on the tablet: a remotely-adopted kiosk pairs over the real (public) Cloudflare certificate with system-CA trust + hostname verification (no warning, cert can rotate); LAN kiosks keep self-signed trust-on-first-use pinning; the tablet picks the mode from the address. Requires a tablet APK update. Bumped per release.

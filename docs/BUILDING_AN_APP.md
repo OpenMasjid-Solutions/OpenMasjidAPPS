@@ -479,7 +479,7 @@ admin's toggle.
 
 ### Sending email — opt in with `email: true` *(platform v0.41.0+)*
 
-The admin configures ONE email provider (SMTP or SendGrid) in Settings → Email. Set `email: true`
+The admin configures ONE email provider (SMTP or Resend) in Settings → Email. Set `email: true`
 to opt in; the platform issues your per-app secret and your **backend** sends mail through the OS —
 you never handle the credentials or the From address. Use it for donation receipts, parent notices,
 etc.

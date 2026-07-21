@@ -41,8 +41,8 @@ apps:
     commit: ddd2b6f5c4a3eef402c19442ab3f0368a351e252
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.9.22                                 # v0.9.22 - fixed the campaign live preview (full-width, both orientations), more readable giving screen (larger + darker-contrast text), a bigger Choose-your-own-amount button, and a nicer on-screen keyboard (compact number row + double-tap caps lock). Kiosk-side changes need a tablet update. Bumped per release.
-    commit: 1daeaef6598491fc3916ad43eefdb934c03c3b03   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.9.23                                 # v0.9.23 - new OpenMasjid Kiosk brand app icon (crescent + minaret + contactless tap) in the App Store, the dashboard, and as the Android launcher icon. Bumped per release.
+    commit: 5befa3f9cba85cce87aa7065b3bcf63be6353844   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
     ref: main                                    # v0.34.0 — new Settings switch to accept tuition on your donation site + kiosk (child's name + PIN → pay balance), wired to the OpenMasjidOS Fabric; the OpenMasjid Donations tuition campaign is now connected. Default on; turn off to hide it there. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest

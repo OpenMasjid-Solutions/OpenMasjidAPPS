@@ -37,8 +37,8 @@ apps:
     commit: 254b4e1768b80e0b8aaf3f32b737fc837424f58c
   - id: donations
     repo: OpenMasjid-Solutions/OpenMasjidDonations
-    ref: v0.26.0                                 # tuition campaign type is now a billing shell over the OpenMasjid Students app (name+PIN -> family balance -> pay -> recorded in Students, via the OS app-to-app broker); commit below is the immutable pin (@sha256 image digest)
-    commit: ddd2b6f5c4a3eef402c19442ab3f0368a351e252
+    ref: v0.27.0                                 # emailed donor receipts (branded, via the OS Fabric email provider) + admin alerts (payment-failed, tuition-record-failed); commit below is the immutable pin (@sha256 image digest)
+    commit: 1d52e910ff565295d69d8a344f49204326004fb2
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
     ref: v0.9.24                                 # v0.9.24 - Tuition payments: a campaign can be a Tuition appeal powered by OpenMasjid Students (name+PIN lookup, balance, pay full or pick invoices on the reader, "payment" receipt). Bumped per release.

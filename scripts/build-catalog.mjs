@@ -99,6 +99,33 @@ function parseFabricManifest(id, fabric) {
   return out;
 }
 
+// Validate + normalise a manifest `alerts:` list (the granular admin-alert types).
+// Returns a cleaned [{id,label,description?}] (or undefined when absent). fail()s on
+// a bad shape. Mirrors OpenMasjidOS parseAlerts (packages/core/src/apps/manager.ts).
+function parseAlertsManifest(id, alerts) {
+  if (alerts == null) return undefined;
+  if (!Array.isArray(alerts)) fail(`${id}: manifest "alerts" must be a list`);
+  const out = [];
+  const seen = new Set();
+  for (const a of alerts) {
+    const aid = a && typeof a === 'object' ? a.id : undefined;
+    const label = a && typeof a === 'object' ? a.label : undefined;
+    const description = a && typeof a === 'object' ? a.description : undefined;
+    if (typeof aid !== 'string' || !CAPABILITY_RE.test(aid)) {
+      fail(`${id}: each alert needs a kebab-case "id" (a-z, 0-9, -)`);
+    }
+    if (typeof label !== 'string' || !label.trim()) fail(`${id}: alert "${aid}" needs a "label"`);
+    if (seen.has(aid)) fail(`${id}: duplicate alert id "${aid}"`);
+    seen.add(aid);
+    out.push({
+      id: aid,
+      label: label.trim().slice(0, 80),
+      description: typeof description === 'string' ? description.trim().slice(0, 200) : undefined,
+    });
+  }
+  return out.length ? out : undefined;
+}
+
 async function fetchText(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -205,6 +232,10 @@ for (const entry of entries) {
   if (m.tunnel != null && typeof m.tunnel !== 'boolean') {
     fail(`${id}: manifest "tunnel" must be true or false`);
   }
+  if (m.email != null && typeof m.email !== 'boolean') {
+    fail(`${id}: manifest "email" must be true or false`);
+  }
+  const alerts = parseAlertsManifest(id, m.alerts);
   const composeCheck = validateCompose(composeText);
   if (composeCheck.errors.length) {
     fail(`${id}: docker-compose.yml has disallowed settings:\n   - ${composeCheck.errors.join('\n   - ')}\n   See docs/BUILDING_AN_APP.md §2b (Security requirements).`);
@@ -260,6 +291,12 @@ for (const entry of entries) {
     // Request internet exposure through the OS's Cloudflare tunnel (the admin still
     // confirms per-app in Settings). Off ⇒ the app stays on the LAN.
     tunnel: m.tunnel === true ? true : undefined,
+    // Send email (receipts, parent notices) via the admin's provider over
+    // POST /api/fabric/email — the app never sees the mail credentials.
+    email: m.email === true ? true : undefined,
+    // Alert types this app can raise (POST /api/fabric/alert); the admin gets a
+    // granular on/off per alert in Settings → Alerts.
+    alerts,
     compose: composeText,
   });
   console.log(`✓ ${id} ← ${repo}@${fetchRef}${immutable ? '' : ' (mutable ref)'}`);

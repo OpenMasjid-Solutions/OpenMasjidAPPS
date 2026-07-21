@@ -157,6 +157,11 @@ ports:
 #   consumes:                       #   capabilities you may CALL, "<target-app-id>/<capability>"
 #     - students/billing
 # tunnel: true                      # OPTIONAL — REQUEST internet exposure (admin confirms in Settings)
+# email: true                       # OPTIONAL — POST /api/fabric/email to send mail (see §7)
+# alerts:                           # OPTIONAL — admin gets a granular on/off per alert (see §7)
+#   - id: reader-offline            #   kebab id you POST to /api/fabric/alert
+#     label: Card reader offline
+#     description: A payment reader stopped responding.
 ```
 
 Field types: `text` | `number` | `password` | `boolean` | `select` (needs `options`). Use
@@ -471,6 +476,51 @@ access (default off for new installs; apps installed before v0.40.0 keep their p
 Everything in the `domain:` section above still applies — read your public URL from `/api/fabric/site`
 (and `OPENMASJID_PUBLIC_URL`, injected empty when you're not exposed). Nothing is public without the
 admin's toggle.
+
+### Sending email — opt in with `email: true` *(platform v0.41.0+)*
+
+The admin configures ONE email provider (SMTP or SendGrid) in Settings → Email. Set `email: true`
+to opt in; the platform issues your per-app secret and your **backend** sends mail through the OS —
+you never handle the credentials or the From address. Use it for donation receipts, parent notices,
+etc.
+
+```
+POST ${OPENMASJID_BASE_URL}/api/fabric/email
+  X-OpenMasjid-App-Secret: <OPENMASJID_APP_SECRET>
+  Content-Type: application/json
+  { "to": "donor@example.org", "subject": "Your receipt", "text": "JazakAllah…", "html": "<p>…</p>" }
+→ 200 { "sent": true }  |  { "sent": false, "reason": "not_configured" | "rate_limited" | "bad_recipient" }
+```
+
+**Fail soft**: `not_configured` just means the admin hasn't set up email — keep working (record the
+donation, show the receipt on screen). Rate-limited per app. Server→server, LAN-only, not CORS-enabled.
+
+### Raising admin alerts — declare them with `alerts:` *(platform v0.41.0+)*
+
+Tell the admin when something is wrong (a camera/reader offline, a failed payment). Declare each
+alert TYPE in your manifest; the admin gets a granular on/off per type in Settings → Alerts (all on
+by default — like UniFi's notification controls). Fire one from your backend; the platform gates on
+the admin's toggle, then delivers to the admin's **email + webhook**.
+
+```yaml
+alerts:
+  - id: reader-offline            # kebab-case, stable — this is what you POST
+    label: Card reader offline
+    description: A payment reader stopped responding.
+```
+
+```
+POST ${OPENMASJID_BASE_URL}/api/fabric/alert
+  X-OpenMasjid-App-Secret: <OPENMASJID_APP_SECRET>
+  Content-Type: application/json
+  { "alert": "reader-offline", "title": "Reader offline", "text": "Lobby reader is unreachable.", "level": "error" }
+→ 200 { "delivered": true, "email": true, "webhook": false }  |  { "delivered": false, "reason": "disabled_by_admin" }
+```
+
+- The `alert` id MUST be one you declared in `alerts:` (else 400). `level` is `info|success|warning|error`.
+- **Fail soft**: `disabled_by_admin` just means the admin turned that alert off — not an error.
+- Alerts go to the ADMIN. To email a donor/parent, use `POST /api/fabric/email` instead.
+- Declaring `alerts:` (or `email: true`) issues your per-app secret — no other capability needed.
 
 ### Restore & migration resilience — REQUIRED for every Fabric app
 

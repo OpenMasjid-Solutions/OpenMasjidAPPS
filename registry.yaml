@@ -37,8 +37,8 @@ apps:
     commit: 254b4e1768b80e0b8aaf3f32b737fc837424f58c
   - id: donations
     repo: OpenMasjid-Solutions/OpenMasjidDonations
-    ref: v0.30.0                                 # Stripe-style receipt email to donors; removed the mis-targeted in-app email test (the platform keeps the admin email private from apps — the admin tests email in OpenMasjidOS → Settings → Email); commit below is the immutable pin (@sha256 image digest)
-    commit: 7d70f02811733764ce5f142a27028e575e2ec6fa
+    ref: v0.32.0                                 # email receipt design on the Thank-you tab; enable toggle + "send me a test" (reaches the admin via the alert channel) in Settings; commit below is the immutable pin (@sha256 image digest)
+    commit: f4ceef1bd529a8309a4acd05e95b779b3a2a1c98
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
     ref: v0.9.24                                 # v0.9.24 - Tuition payments: a campaign can be a Tuition appeal powered by OpenMasjid Students (name+PIN lookup, balance, pay full or pick invoices on the reader, "payment" receipt). Bumped per release.

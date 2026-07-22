@@ -41,8 +41,8 @@ apps:
     commit: f4ceef1bd529a8309a4acd05e95b779b3a2a1c98
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.9.24                                 # v0.9.24 - Tuition payments: a campaign can be a Tuition appeal powered by OpenMasjid Students (name+PIN lookup, balance, pay full or pick invoices on the reader, "payment" receipt). Bumped per release.
-    commit: 17eec5154b072164a71a569d7f1cf4d19ea1669d   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.9.25                                 # v0.9.25 - Email receipts (branded Stripe-style receipt to donors via the OS email provider) + admin alerts (reader-offline, payment-failed, test). Bumped per release.
+    commit: 684605593f910a8ac25dd69b02e94aed4390a294   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
     ref: main                                    # v0.34.0 — new Settings switch to accept tuition on your donation site + kiosk (child's name + PIN → pay balance), wired to the OpenMasjidOS Fabric; the OpenMasjid Donations tuition campaign is now connected. Default on; turn off to hide it there. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest

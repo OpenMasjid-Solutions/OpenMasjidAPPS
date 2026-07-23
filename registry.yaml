@@ -47,6 +47,9 @@ apps:
     repo: OpenMasjid-Solutions/OpenMasjidStudentManager
     ref: main                                    # v0.34.0 — new Settings switch to accept tuition on your donation site + kiosk (child's name + PIN → pay balance), wired to the OpenMasjidOS Fabric; the OpenMasjid Donations tuition campaign is now connected. Default on; turn off to hide it there. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
     commit: a6745473a234498157b649a1bed04fbe95e77380
+  - id: parking-attendant
+    repo: SyButter/OpenMasjidParkingAttendant
+    ref: v0.1.0
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

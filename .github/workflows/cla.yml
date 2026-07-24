@@ -1,17 +1,25 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 OpenMasjid-Solutions
 #
-# Contributor License Agreement enforcement.
+# Contributor License Agreement enforcement (CLA Assistant bot).
 #
-# On every pull request, the CLA Assistant bot checks whether each contributor
-# has signed CLA.md. If not, it comments asking them to sign by replying with
-# the exact sentence below; signatures are recorded in signatures/version1/cla.json
-# on the default branch, so each person signs only once.
+# On every pull request the bot checks whether each contributor has signed CLA.md.
+# If not, it comments asking them to reply with the exact sentence below; they sign
+# ONCE and are remembered thereafter.
 #
-# One-time setup (repo admin): create a repository secret named PERSONAL_ACCESS_TOKEN
-# — a token with `contents: write` + `pull-requests: write` on this repo — so the
-# bot can commit signatures and update the PR. (The built-in GITHUB_TOKEN works for
-# many cases, but the bot is most reliable with a PAT.)
+# Signatures are stored on a DEDICATED, UNPROTECTED branch (`cla-signatures`), NOT on
+# the default branch. This is deliberate: the default branch is protected with a
+# required "cla" status check, and the bot cannot commit the signatures file to a
+# protected branch (it fails with `Required status check "cla" is expected`). The
+# storage branch has no protection, so signing always succeeds. The built-in
+# GITHUB_TOKEN can write it; PERSONAL_ACCESS_TOKEN is used when present (optional).
+#
+# `actions: write` is REQUIRED (this is the official contributor-assistant setup):
+# after a contributor posts the sign comment, the action RE-RUNS the PR's workflow to
+# flip the required `cla` check from red to green. Without it the signature is
+# recorded but the check stays red ("Resource not accessible by integration"). It is
+# safe here because this workflow runs ONLY the pinned action and never checks out or
+# executes the PR's code — the usual pull_request_target risk.
 name: CLA Assistant
 
 on:
@@ -21,6 +29,7 @@ on:
     types: [opened, synchronize]
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
   statuses: write
@@ -37,13 +46,14 @@ jobs:
         uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Optional but recommended — see the header note above.
+          # Optional; used when set. GITHUB_TOKEN alone is enough to store signatures
+          # on the unprotected cla-signatures branch.
           PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         with:
           path-to-signatures: 'signatures/version1/cla.json'
           path-to-document: 'https://github.com/OpenMasjid-Solutions/OpenMasjidAPPS/blob/main/CLA.md'
-          # Branch where the signatures file is stored/committed (the default branch).
-          branch: 'main'
+          # Dedicated unprotected branch that holds the signatures file (see header).
+          branch: 'cla-signatures'
           # The custom sentence a contributor posts to sign:
           custom-pr-sign-comment: 'I have read the CLA Document and I hereby sign the CLA'
           custom-allsigned-prcomment: 'All contributors have signed the CLA. Thank you! 🕌'

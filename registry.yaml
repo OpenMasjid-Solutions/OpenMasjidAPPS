@@ -44,9 +44,9 @@ apps:
     ref: v0.9.27                                 # v0.9.27 - Soft-kiosk lockdown (no ADB): hold screen pinning (blocks shade + recents), swallow Back, in-app APK update (no browser), opt-in shade-dismiss accessibility helper. Bumped per release.
     commit: b7980f435732ac125a00bb4df11830ad30f0d9a1   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
-    repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.34.0 — new Settings switch to accept tuition on your donation site + kiosk (child's name + PIN → pay balance), wired to the OpenMasjidOS Fabric; the OpenMasjid Donations tuition campaign is now connected. Default on; turn off to hide it there. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
-    commit: a6745473a234498157b649a1bed04fbe95e77380
+    repo: OpenMasjid-Solutions/OpenMasjidStudents
+    ref: main                                    # v0.35.0 — REPO RENAMED (was OpenMasjidStudentManager) + descoped to tuition/fee management only: families & students (name + PIN), per-student fee plans, family invoices, ledger, cash + card (portal Stripe, autopay, saved cards) + donation-site/kiosk tuition over the Fabric. All academics removed. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
+    commit: a7c3b9d93536c44f69b2646f7524148dcd8d1f13
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

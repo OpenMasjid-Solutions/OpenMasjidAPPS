@@ -169,112 +169,22 @@
       "name": "Parking Attendant",
       "tagline": "Live lot capacity and incorrect-parking reports for your masjid's screens",
       "category": "utilities",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": "SyButter",
       "license": "MIT",
-      "icon": "https://raw.githubusercontent.com/SyButter/OpenMasjidParkingAttendant/b1260a1fda612f87295d7d4759ff553836a6b4ca/icon.svg",
+      "icon": "https://raw.githubusercontent.com/SyButter/OpenMasjidParkingAttendant/8a4638035326af174540c1181e982c3d3a2417bb/icon.svg",
       "screenshots": [
-        "https://raw.githubusercontent.com/SyButter/OpenMasjidParkingAttendant/b1260a1fda612f87295d7d4759ff553836a6b4ca/screenshots/1.svg",
-        "https://raw.githubusercontent.com/SyButter/OpenMasjidParkingAttendant/b1260a1fda612f87295d7d4759ff553836a6b4ca/screenshots/2.svg"
+        "https://raw.githubusercontent.com/SyButter/OpenMasjidParkingAttendant/8a4638035326af174540c1181e982c3d3a2417bb/screenshots/1.svg",
+        "https://raw.githubusercontent.com/SyButter/OpenMasjidParkingAttendant/8a4638035326af174540c1181e982c3d3a2417bb/screenshots/2.svg"
       ],
-      "description": "A live parking board for the screens at your masjid, plus a phone-friendly tool for\nyour parking volunteers.\n\n**On the screen (the Board).** Each parking area shows how full it is — Open, Filling,\nor Full — with a big count and a gauge, updated the instant an attendant changes it.\nIt also surfaces **incorrect-parking reports**: any car a volunteer flags appears with a\nred border, an \"Incorrect Parking\" banner, the photo(s), the license plate, a short\ndescription of the car, where it is, and why it was reported.\n\n**On a phone (the Control app, at `/control`).** Volunteers make an account; the first\naccount becomes the **admin**, and everyone after waits for the admin to approve them.\nApproved attendants tap **+/−** to keep each area's count current and post\nincorrect-parking reports with photos straight from their camera. The admin also manages\nthe parking areas and approves or suspends attendants.\n\n**After installing:** open the app — that's the Board; put it full-screen on your TV\n(F11 on most browsers). On a phone, go to the same address with **/control** on the end\nto sign in. Create the first account there to become the admin. All data stays on your\nown server.\n",
-      "settings": [
-        {
-          "key": "MASJID_NAME",
-          "label": "Masjid name",
-          "type": "text",
-          "default": "Our Masjid"
-        },
-        {
-          "key": "BOARD_TITLE",
-          "label": "Title shown on the board",
-          "type": "text",
-          "default": "Parking"
-        },
-        {
-          "key": "ADMIN_USERNAME",
-          "label": "Admin username (optional — otherwise the first account you create becomes admin)",
-          "type": "text",
-          "default": ""
-        },
-        {
-          "key": "ADMIN_PASSWORD",
-          "label": "Admin password (optional — set this to pre-create the admin account)",
-          "type": "password",
-          "default": ""
-        },
-        {
-          "key": "FILLING_PERCENT",
-          "label": "A lot shows \"Filling\" once it passes this percent full",
-          "type": "number",
-          "default": "75"
-        },
-        {
-          "key": "LANGUAGE",
-          "label": "Language for dates and times",
-          "type": "select",
-          "options": [
-            "en",
-            "ar",
-            "ur"
-          ],
-          "default": "en"
-        },
-        {
-          "key": "LOT1_NAME",
-          "label": "Parking area 1 — name",
-          "type": "text",
-          "default": "Main Lot"
-        },
-        {
-          "key": "LOT1_CAPACITY",
-          "label": "Parking area 1 — number of spaces",
-          "type": "number",
-          "default": "60"
-        },
-        {
-          "key": "LOT2_NAME",
-          "label": "Parking area 2 — name (leave blank if unused)",
-          "type": "text",
-          "default": "Overflow"
-        },
-        {
-          "key": "LOT2_CAPACITY",
-          "label": "Parking area 2 — number of spaces",
-          "type": "number",
-          "default": "40"
-        },
-        {
-          "key": "LOT3_NAME",
-          "label": "Parking area 3 — name (leave blank if unused)",
-          "type": "text",
-          "default": ""
-        },
-        {
-          "key": "LOT3_CAPACITY",
-          "label": "Parking area 3 — number of spaces",
-          "type": "number",
-          "default": "0"
-        },
-        {
-          "key": "LOT4_NAME",
-          "label": "Parking area 4 — name (leave blank if unused)",
-          "type": "text",
-          "default": ""
-        },
-        {
-          "key": "LOT4_CAPACITY",
-          "label": "Parking area 4 — number of spaces",
-          "type": "number",
-          "default": "0"
-        }
-      ],
+      "description": "A live parking board for the screens at your masjid, plus a phone-friendly tool for\nyour parking volunteers.\n\n**On the screen (the Board).** Each parking area shows how full it is — Open, Filling,\nor Full — with a big count and a gauge, updated the instant an attendant changes it.\nIt also surfaces **incorrect-parking reports**: any car a volunteer flags appears with a\nred border, an \"Incorrect Parking\" banner, the photo(s), the license plate, a short\ndescription of the car, where it is, and why it was reported.\n\n**On a phone (the Control app, at `/control`).** Approved attendants tap **+/−** to keep\neach area's count current and post incorrect-parking reports with photos straight from\ntheir camera. Repeat offenders are tracked automatically by license plate (a strike each\ntime they're reported). The admin manages the parking areas, the masjid name and other\nsettings, and approves or suspends attendants — all inside the app.\n\n**Nothing to fill in here — just install.** When it's running, click **Open** — that's\nthe Board; put it full-screen on your TV (F11 on most browsers). It signs you in with your\nOpenMasjidOS login and matches your dashboard's look. Then set everything up inside: your\nmasjid name, parking areas, and thresholds. Volunteers go to the same address with\n**/control** on the end, create an account, and you approve them. All data stays on your\nown server.\n",
       "ports": [
         {
           "container": 8080,
           "label": "Web interface"
         }
       ],
+      "sso": true,
       "fabric": {
         "provides": [
           {
@@ -282,7 +192,7 @@
           }
         ]
       },
-      "compose": "# SPDX-License-Identifier: MIT\nservices:\n  app:\n    # Pinned, public, matches the repo name (the build workflow pushes\n    # ghcr.io/<owner-lowercased>/<repo-lowercased>:<version>). For a real release,\n    # digest-pin for integrity — append @sha256:<digest> so a moved tag can't\n    # repoint it (see docs/BUILDING_AN_APP.md §2b in the catalog repo):\n    #   image: ghcr.io/sybutter/openmasjidparkingattendant:0.1.0@sha256:<64 hex>\n    image: ghcr.io/sybutter/openmasjidparkingattendant:0.1.0\n    restart: unless-stopped\n    environment:\n      MASJID_NAME: ${MASJID_NAME}\n      BOARD_TITLE: ${BOARD_TITLE}\n      FILLING_PERCENT: ${FILLING_PERCENT}\n      LANGUAGE: ${LANGUAGE}\n      ADMIN_USERNAME: ${ADMIN_USERNAME}\n      ADMIN_PASSWORD: ${ADMIN_PASSWORD}\n      LOT1_NAME: ${LOT1_NAME}\n      LOT1_CAPACITY: ${LOT1_CAPACITY}\n      LOT2_NAME: ${LOT2_NAME}\n      LOT2_CAPACITY: ${LOT2_CAPACITY}\n      LOT3_NAME: ${LOT3_NAME}\n      LOT3_CAPACITY: ${LOT3_CAPACITY}\n      LOT4_NAME: ${LOT4_NAME}\n      LOT4_CAPACITY: ${LOT4_CAPACITY}\n      # OpenMasjidOS Fabric — the platform writes these into our .env at install\n      # because the manifest declares a `fabric:` capability. They only reach the\n      # container if referenced here. Empty defaults keep a standalone `up` quiet.\n      OPENMASJID_BASE_URL: ${OPENMASJID_BASE_URL:-}\n      OPENMASJID_APP_ID: ${OPENMASJID_APP_ID:-}\n      OPENMASJID_APP_SECRET: ${OPENMASJID_APP_SECRET:-}\n    ports:\n      # host:container — the platform offers \"Open\" on the published host port and\n      # remaps automatically if 8749 is already taken.\n      - \"8749:8080\"\n    volumes:\n      - data:/data\nvolumes:\n  data:\n"
+      "compose": "# SPDX-License-Identifier: MIT\nservices:\n  app:\n    # Pinned, public, matches the repo name (the build workflow pushes\n    # ghcr.io/<owner-lowercased>/<repo-lowercased>:<version>). For a real release,\n    # digest-pin for integrity — append @sha256:<digest> so a moved tag can't\n    # repoint it (see docs/BUILDING_AN_APP.md §2b in the catalog repo):\n    #   image: ghcr.io/sybutter/openmasjidparkingattendant:0.2.0@sha256:<64 hex>\n    image: ghcr.io/sybutter/openmasjidparkingattendant:0.2.0\n    restart: unless-stopped\n    # One-click install: no settings. Everything masjid-specific is configured inside\n    # the app (stored in SQLite on the /data volume) after install.\n    environment:\n      # OpenMasjidOS Fabric — the platform writes these into our .env at install\n      # because the manifest declares `sso` + a `fabric:` capability. They only reach\n      # the container if referenced here. Empty defaults keep a standalone `up` quiet.\n      OPENMASJID_BASE_URL: ${OPENMASJID_BASE_URL:-}\n      OPENMASJID_APP_ID: ${OPENMASJID_APP_ID:-}\n      OPENMASJID_APP_SECRET: ${OPENMASJID_APP_SECRET:-}\n    ports:\n      # host:container — the platform offers \"Open\" on the published host port and\n      # remaps automatically if 8749 is already taken.\n      - \"8749:8080\"\n    volumes:\n      - data:/data\nvolumes:\n  data:\n"
     }
   ]
 }

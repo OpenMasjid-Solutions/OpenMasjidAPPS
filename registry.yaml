@@ -49,8 +49,8 @@ apps:
     commit: a6745473a234498157b649a1bed04fbe95e77380
   - id: parking-attendant
     repo: SyButter/OpenMasjidParkingAttendant
-    ref: v0.1.0                                  # v0.1.0 — live parking board + incorrect-parking reports with photos; attendant accounts (first = admin, rest need approval); per-plate offender strikes; SQLite on /data; provides a Fabric `parking` capability for OpenMasjid Display
-    commit: b1260a1fda612f87295d7d4759ff553836a6b4ca   # immutable pin (the v0.1.0 tag commit)
+    ref: v0.2.0                                  # v0.2.0 — one-click install (settings configured in-app) + OpenMasjidOS SSO; live parking board + incorrect-parking reports with photos; per-plate offender strikes; SQLite on /data; provides a Fabric `parking` capability for OpenMasjid Display
+    commit: 8a4638035326af174540c1181e982c3d3a2417bb   # immutable pin (the v0.2.0 tag commit)
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

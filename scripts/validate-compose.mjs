@@ -190,7 +190,8 @@ export function validateCompose(text) {
     }
   }
 
-  // Top-level named volumes that are actually host binds via the local driver.
+  // Top-level named volumes that are actually host binds via the local driver,
+  // or that attach to an ALREADY-EXISTING Docker volume.
   const topVols = doc.volumes && typeof doc.volumes === 'object' ? doc.volumes : {};
   for (const [name, def] of Object.entries(topVols)) {
     if (!def || typeof def !== 'object') continue;
@@ -199,6 +200,27 @@ export function validateCompose(text) {
     const oo = String(o.o || '').toLowerCase();
     if (type === 'bind' || type === 'none' || /\bbind\b/.test(oo)) {
       errors.add(`volume "${name}": local-driver bind mount to the host (${o.device || 'device unset'})`);
+    }
+    // `external: true` uses the volume name verbatim and `name:` overrides the
+    // project-scoped name, so either can attach to ANOTHER app's data without
+    // ever naming a host path — classifyVolumeSource() sees only "named" and
+    // waves it through. Every OpenMasjid app's data lives in an `omos-*` volume.
+    // Mirrors OpenMasjidOS apps/compose-validate.ts checkExternalVolumes().
+    const isExternal = isTruthyFlag(def.external) || (!!def.external && typeof def.external === 'object');
+    const explicit =
+      typeof def.name === 'string'
+        ? def.name
+        : def.external && typeof def.external === 'object' && typeof def.external.name === 'string'
+          ? def.external.name
+          : null;
+    if (!isExternal && explicit == null) continue;
+    const target = String(explicit ?? name).trim();
+    if (/^omos[-_]/i.test(target)) {
+      errors.add(`volume "${name}": attaches to another OpenMasjid app's data volume ("${target}")`);
+    } else {
+      errors.add(
+        `volume "${name}": attaches to a pre-existing Docker volume ("${target}") — a listed app must own its storage`,
+      );
     }
   }
 

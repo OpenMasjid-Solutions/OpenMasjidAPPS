@@ -33,8 +33,8 @@
 apps:
   - id: display
     repo: OpenMasjid-Solutions/OpenMasjidDisplay
-    ref: v0.63.0                                 # v0.63.0 — incorrect-parking reporting built into the volunteer page: report cars (plate, car, location, reason, photo) and pick which displays; each rotates as a full-screen red alert card in that timetable's announcements. Self-contained (no Parking Attendant app / Fabric needed)
-    commit: f85b5c8a667c672737f8f8444c5e1f134ed70259
+    ref: v0.64.0  # v0.64.0 — incorrect-parking reporting on the volunteer page: report cars with photos, pick displays; each shows as a full-bleed red alert card (multiple photos scroll) in that timetable's announcements. Self-contained.
+    commit: 53f446bbf554939ffda0e2be5c801f8aa3b19b9d
   - id: donations
     repo: OpenMasjid-Solutions/OpenMasjidDonations
     ref: v0.32.0                                 # email receipt design on the Thank-you tab; enable toggle + "send me a test" (reaches the admin via the alert channel) in Settings; commit below is the immutable pin (@sha256 image digest)

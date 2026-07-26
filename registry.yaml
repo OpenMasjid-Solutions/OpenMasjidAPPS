@@ -44,9 +44,9 @@ apps:
     ref: v0.9.27                                 # v0.9.27 - Soft-kiosk lockdown (no ADB): hold screen pinning (blocks shade + recents), swallow Back, in-app APK update (no browser), opt-in shade-dismiss accessibility helper. Bumped per release.
     commit: b7980f435732ac125a00bb4df11830ad30f0d9a1   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
-    repo: OpenMasjid-Solutions/OpenMasjidStudentManager
-    ref: main                                    # v0.34.0 — new Settings switch to accept tuition on your donation site + kiosk (child's name + PIN → pay balance), wired to the OpenMasjidOS Fabric; the OpenMasjid Donations tuition campaign is now connected. Default on; turn off to hide it there. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
-    commit: a6745473a234498157b649a1bed04fbe95e77380
+    repo: OpenMasjid-Solutions/OpenMasjidStudents
+    ref: v0.36.0                                 # v0.36.0 — school year + terms, courses/classes as a grouping, one-off charges (books/uniform/late fees) with a configurable item list, per-student fee overrides, mass apply, and CSV student import. Fixes a live over-billing bug: a one-time fee plan used to re-bill every period. English-only UI. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
+    commit: 472b85a5caa39e8e384565d24b83162b48b2e55a
   - id: parking-attendant
     repo: SyButter/OpenMasjidParkingAttendant
     ref: v0.2.1                                  # v0.2.1 — one-click install + OpenMasjidOS SSO; live board + incorrect-parking alert cards (with the car's photo) that Display can cycle as announcements; per-plate offender strikes; SQLite on /data

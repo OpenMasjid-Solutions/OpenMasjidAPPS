@@ -45,8 +45,8 @@ apps:
     commit: b7980f435732ac125a00bb4df11830ad30f0d9a1   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudents
-    ref: v0.36.0                                 # v0.36.0 — school year + terms, courses/classes as a grouping, one-off charges (books/uniform/late fees) with a configurable item list, per-student fee overrides, mass apply, and CSV student import. Fixes a live over-billing bug: a one-time fee plan used to re-bill every period. English-only UI. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
-    commit: 472b85a5caa39e8e384565d24b83162b48b2e55a
+    ref: v0.37.0                                 # v0.37.0 — a Structure tab to set up the school year (which months it runs), its terms, and courses → classes; mass-apply a fee plan or a one-off charge to a whole class, a course, or picked students; a charge-item list; per-student fee overrides; a whole-year students × months payment grid you can print, with admin-chosen extra columns; see which parents have a portal account and send them a password reset; record cash / check / bank transfer / Zelle. Invites and receipts can go through the masjid's OpenMasjidOS email, so this app's own SMTP is optional. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
+    commit: bc9e9764866035e6f25781f231404bfcefc71d13
   - id: parking-attendant
     repo: SyButter/OpenMasjidParkingAttendant
     ref: v0.2.1                                  # v0.2.1 — one-click install + OpenMasjidOS SSO; live board + incorrect-parking alert cards (with the car's photo) that Display can cycle as announcements; per-plate offender strikes; SQLite on /data

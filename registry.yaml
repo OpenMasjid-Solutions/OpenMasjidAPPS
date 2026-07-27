@@ -41,15 +41,17 @@ apps:
     commit: f4ceef1bd529a8309a4acd05e95b779b3a2a1c98
   - id: kiosk
     repo: OpenMasjid-Solutions/OpenMasjidKiosk
-    ref: v0.9.27                                 # v0.9.27 - Soft-kiosk lockdown (no ADB): hold screen pinning (blocks shade + recents), swallow Back, in-app APK update (no browser), opt-in shade-dismiss accessibility helper. Bumped per release.
-    commit: b7980f435732ac125a00bb4df11830ad30f0d9a1   # immutable pin; the app's compose pins the @sha256 image digest
+    ref: v0.9.29                                 # v0.9.29 — tuition at the kiosk now asks for the child’s Student ID (e.g. YUS1234) and nothing else: the screen shows the child’s name back and waits for a “yes” before any balance appears, so a mistyped ID is caught instead of paying a stranger’s bill. No PIN to remember or reissue. With OpenMasjid Students billing each child separately, paying a specific month now lands on that child’s bill, and every month listed says whose it is. Needs OpenMasjid Students v0.39.0 and a tablet app update — the new app is on the kiosk’s own setup page. Donations, Zakat, the card reader and receipts are untouched. Plus everything from v0.9.27: the soft-kiosk lockdown (held screen pinning that blocks the shade and recents, swallowed Back, in-app app updates with no browser). One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
+    commit: 24138944bfa47ef5c1477ec43f0a66b5306cb9f2   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudents
     ref: v0.39.0                                 # v0.39.0 — paying tuition now takes ONLY the child’s Student ID (e.g. YUS1234): type it, check the name the screen shows back, then pay for any of your children from that one screen. PINs are gone, so there is no second number to remember and nothing to reissue when a parent forgets one — a name-confirmation step and a hard per-ID lockout protect it instead. One bill per child: each child has their own invoices, balance, credit and payment history, and recording cash asks which child it was for — while parents still see one combined balance and pay once. Adding people starts with the student: pick a brother or sister already enrolled and the guardian details already on file apply to them; nobody names a household any more. Plus everything from v0.38.0: automatic monthly invoices, CSV export, the Structure tab (school year, terms, courses → classes), per-student fee overrides and the whole-year payment grid. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
-    # Heads-up for whoever ships the next Donations/Kiosk release: v0.39.0 moved the
-    # students/billing Fabric contract to v: 2 — `lookup` takes the Student ID alone. Both
-    # consumers still send the old name+PIN body and get a 400 on that one call (their money
-    # path is untouched), so their v2 lookup screens are the follow-up.
+    # Heads-up for whoever ships the next Donations release: v0.39.0 moved the students/billing
+    # Fabric contract to v: 2 — `lookup` takes the Student ID alone. Kiosk shipped its v2 screen
+    # in v0.9.29 (identify → confirm the name → lookup, plus the per-child split on
+    # record-payment, which is what 0.39.0 actually books the ledger from). Donations still sends
+    # the old name+PIN body and gets a 400 on that one call (its money path is untouched), so its
+    # v2 lookup screen is the remaining follow-up.
     commit: cb23c66feb04afd8c3cd3cdc3ded42fbde5990f3
   - id: parking-attendant
     repo: SyButter/OpenMasjidParkingAttendant

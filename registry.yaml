@@ -45,8 +45,12 @@ apps:
     commit: b7980f435732ac125a00bb4df11830ad30f0d9a1   # immutable pin; the app's compose pins the @sha256 image digest
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudents
-    ref: v0.38.0                                 # v0.38.0 — every child gets a Student ID (e.g. YUS1234): type it at the kiosk, check the name it shows, enter the PIN, then pay for any of your children from that one screen. Automatic monthly invoices on a day you choose (only months inside your school year, and it catches up if the app was off). Delete a student, not just withdraw them. Add admins and change staff roles. CSV export of payments, invoices, balances and students. Plus everything from v0.37.0: the Structure tab (school year, terms, courses → classes), mass apply, charge items, per-student fee overrides, the whole-year payment grid, parent portal-account visibility, and invites through the masjid's OpenMasjidOS email. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
-    commit: ab519de43eba0e3bc1c5637546c623841eb212f2
+    ref: v0.39.0                                 # v0.39.0 — paying tuition now takes ONLY the child’s Student ID (e.g. YUS1234): type it, check the name the screen shows back, then pay for any of your children from that one screen. PINs are gone, so there is no second number to remember and nothing to reissue when a parent forgets one — a name-confirmation step and a hard per-ID lockout protect it instead. One bill per child: each child has their own invoices, balance, credit and payment history, and recording cash asks which child it was for — while parents still see one combined balance and pay once. Adding people starts with the student: pick a brother or sister already enrolled and the guardian details already on file apply to them; nobody names a household any more. Plus everything from v0.38.0: automatic monthly invoices, CSV export, the Structure tab (school year, terms, courses → classes), per-student fee overrides and the whole-year payment grid. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
+    # Heads-up for whoever ships the next Donations/Kiosk release: v0.39.0 moved the
+    # students/billing Fabric contract to v: 2 — `lookup` takes the Student ID alone. Both
+    # consumers still send the old name+PIN body and get a 400 on that one call (their money
+    # path is untouched), so their v2 lookup screens are the follow-up.
+    commit: cb23c66feb04afd8c3cd3cdc3ded42fbde5990f3
   - id: parking-attendant
     repo: SyButter/OpenMasjidParkingAttendant
     ref: v0.2.1                                  # v0.2.1 — one-click install + OpenMasjidOS SSO; live board + incorrect-parking alert cards (with the car's photo) that Display can cycle as announcements; per-plate offender strikes; SQLite on /data

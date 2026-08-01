@@ -18,6 +18,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { parse } from 'yaml';
 import { validateCompose } from './validate-compose.mjs';
+import { validateSource, rawBase } from './registry-validate.mjs';
 
 const REGISTRY = 'registry.yaml';
 
@@ -149,11 +150,9 @@ async function resolveRefToSha(repo, ref) {
   }
 }
 
-// raw.githubusercontent.com base for a repo/ref (+ optional subpath), trailing slash.
-function rawBase(repo, ref, path) {
-  const sub = path ? `${String(path).replace(/^\/+|\/+$/g, '')}/` : '';
-  return `https://raw.githubusercontent.com/${repo}/${ref}/${sub}`;
-}
+// rawBase() (the raw.githubusercontent.com URL builder) and the validation for
+// everything untrusted that reaches it live in ./registry-validate.mjs so they can
+// be unit-tested — importing this file runs the whole build.
 
 let registry = { apps: [] };
 if (existsSync(REGISTRY)) {
@@ -176,6 +175,16 @@ for (const entry of entries) {
   if (!APP_ID_RE.test(id)) fail(`${id}: invalid id — use kebab-case (a-z, 0-9, -), max 80 chars`);
   if (seen.has(id)) fail(`duplicate id in registry: ${id}`);
   seen.add(id);
+
+  // Validate everything that becomes part of a fetch URL BEFORE building one.
+  // Without this, a `..` segment in `path` silently redirected the entry to a
+  // different repository while `repo`/`commit`, the review diff and the build log
+  // all still named the pinned one — defeating the only integrity control the
+  // unattended daily rebuild has. See registry-validate.mjs. (APPS-001)
+  const sourceProblems = validateSource({ repo, ref, path });
+  if (sourceProblems.length) {
+    fail(`${id}: unsafe registry entry:\n   - ${sourceProblems.join('\n   - ')}`);
+  }
 
   // Decide what to fetch at. An explicit commit/sha pin wins; otherwise the ref.
   const pin = commit ?? sha;

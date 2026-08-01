@@ -173,14 +173,34 @@ export function validateCompose(text) {
       if (str(svc[k]) === 'host') errors.add(`${where}: ${k}: host`);
     }
 
-    if (Array.isArray(svc.cap_add) && svc.cap_add.length) errors.add(`${where}: cap_add ${JSON.stringify(svc.cap_add)}`);
+    // These three were gated on Array.isArray(), so a scalar value skipped the
+    // check entirely while `devices` and `volumes_from` handled both shapes. Docker
+    // Compose does reject a scalar here ("must be a array"), so it was never an
+    // exploitable bypass — but CLAUDE.md §10 requires lockstep with the platform's
+    // separate validator, and a safety check must not depend on YAML shape. (APPS-012)
+    const toList = (v) => (v == null ? [] : Array.isArray(v) ? v : [v]);
+
+    const capAdd = toList(svc.cap_add);
+    if (capAdd.length) errors.add(`${where}: cap_add ${JSON.stringify(capAdd)}`);
     if (svc.devices && (!Array.isArray(svc.devices) || svc.devices.length)) errors.add(`${where}: devices (host device passthrough)`);
     if (svc.device_cgroup_rules) errors.add(`${where}: device_cgroup_rules`);
-    if (Array.isArray(svc.security_opt) && svc.security_opt.some((s) => str(s).includes('unconfined'))) {
+    if (toList(svc.security_opt).some((s) => str(s).includes('unconfined'))) {
       errors.add(`${where}: security_opt unconfined`);
     }
-    if (Array.isArray(svc.group_add) && svc.group_add.some((g) => ['root', 'docker', '0', 0].includes(g))) {
+    if (toList(svc.group_add).some((g) => ['root', 'docker', '0', 0].includes(g))) {
       errors.add(`${where}: group_add of a privileged group (root/docker)`);
+    }
+
+    // cgroup_parent places the container outside the cgroup slice the platform
+    // assigns it, escaping the memory/CPU limits that keep a Raspberry Pi alive.
+    // The validator already rejects `cgroup: host`; this is the same class. (APPS-011)
+    if (svc.cgroup_parent != null && String(svc.cgroup_parent).trim() !== '') {
+      errors.add(`${where}: cgroup_parent "${svc.cgroup_parent}" escapes the platform's cgroup limits`);
+    }
+    // Docker only permits namespaced sysctls without --privileged, so the reach is
+    // the container's own namespace: worth surfacing, not worth failing an app over.
+    if (svc.sysctls && (typeof svc.sysctls === 'object' || String(svc.sysctls).trim())) {
+      warnings.add(`${where}: sets sysctls — kernel tunables should not be needed by a masjid app`);
     }
     if (svc.build !== undefined) errors.add(`${where}: "build" — apps must reference a pre-built, published image, not build on the host`);
     if (svc.extends !== undefined) errors.add(`${where}: "extends" merges config the safety check cannot see`);
@@ -275,6 +295,44 @@ export function validateCompose(text) {
       if (key && key !== 'default' && !declaredNets.has(key)) {
         errors.add(`service "${name}": joins network "${key}" without declaring it under top-level "networks:"`);
       }
+    }
+  }
+
+  // Discovery labels are platform-internal: CLAUDE.md §4C forbids them and
+  // docs/BUILDING_AN_APP.md states they are "Rejected at build AND at install" —
+  // but nothing here ever looked at labels, so the documented guarantee was not
+  // real. An app that declares another app's compose project label can confuse
+  // platform inventory, lifecycle and uninstall. (APPS-004)
+  const RESERVED_LABEL = /^(com\.docker\.compose\.|com\.openmasjid\.)/i;
+  const checkLabels = (labels, where) => {
+    if (!labels) return;
+    // Compose accepts both the map form and the list form ("k=v").
+    const keys = Array.isArray(labels)
+      ? labels.map((l) => String(l).split('=')[0].trim())
+      : typeof labels === 'object'
+        ? Object.keys(labels)
+        : [];
+    for (const k of keys) {
+      if (RESERVED_LABEL.test(k)) {
+        errors.add(`${where}: sets the platform-internal label "${k}" — these are reserved for OpenMasjidOS`);
+      }
+    }
+  };
+  for (const [name, s] of Object.entries(services)) {
+    if (!s || typeof s !== 'object') continue;
+    checkLabels(s.labels, `service "${name}"`);
+    // build: is rejected elsewhere, but its labels would apply to the image too.
+    if (s.build && typeof s.build === 'object') checkLabels(s.build.labels, `service "${name}" build`);
+  }
+  for (const [key, section] of [
+    ['network', doc.networks],
+    ['volume', doc.volumes],
+    ['secret', doc.secrets],
+    ['config', doc.configs],
+  ]) {
+    if (!section || typeof section !== 'object') continue;
+    for (const [name, def] of Object.entries(section)) {
+      if (def && typeof def === 'object') checkLabels(def.labels, `${key} "${name}"`);
     }
   }
 

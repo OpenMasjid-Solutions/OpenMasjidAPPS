@@ -185,6 +185,51 @@ test('APPS-002 no networks: block at all still passes (the common case)', () =>
 test('APPS-002 joining the implicit default network still passes', () =>
   clean(svc('    networks: [default]\n')));
 
+// --- discovery labels (APPS-004) -----------------------------------------
+// CLAUDE.md §4C forbids these and docs/BUILDING_AN_APP.md:573 claims they are
+// "Rejected at build AND at install" — nothing checked them until now.
+test('APPS-004 spoofing another app\'s compose project label is rejected', () =>
+  rejects(svc('    labels:\n      com.docker.compose.project: omos-donations\n'), 'platform-internal label'));
+
+test('APPS-004 com.openmasjid.* labels are rejected', () =>
+  rejects(svc('    labels:\n      com.openmasjid.trusted: "true"\n'), 'platform-internal label'));
+
+test('APPS-004 the list form of labels is checked too', () =>
+  rejects(svc('    labels:\n      - "com.docker.compose.project=omos-kiosk"\n'), 'platform-internal label'));
+
+test('APPS-004 reserved labels on networks, volumes and secrets are rejected', () => {
+  rejects(`services:\n  app:\n    image: n\nvolumes:\n  d:\n    labels:\n      com.openmasjid.x: "1"\n`, 'platform-internal label');
+  rejects(`services:\n  app:\n    image: n\nnetworks:\n  nn:\n    labels:\n      com.docker.compose.project: omos-x\n`, 'platform-internal label');
+});
+
+test('APPS-004 the match is case-insensitive', () =>
+  rejects(svc('    labels:\n      COM.Docker.Compose.Project: omos-x\n'), 'platform-internal label'));
+
+test('APPS-004 an app\'s own labels are still allowed', () => {
+  clean(svc('    labels:\n      org.opencontainers.image.title: My App\n      my.app.role: web\n'));
+  clean(svc('    labels:\n      - "org.opencontainers.image.licenses=MIT"\n'));
+});
+
+// --- cgroup_parent / sysctls (APPS-011) ----------------------------------
+test('APPS-011 cgroup_parent is rejected', () =>
+  rejects(svc('    cgroup_parent: /docker/evil\n'), 'cgroup_parent'));
+
+test('APPS-011 an empty cgroup_parent is not flagged', () => clean(svc('    cgroup_parent: ""\n')));
+
+test('APPS-011 sysctls warn but do not fail the build', () =>
+  warnsOnly(svc('    sysctls:\n      net.ipv4.ip_forward: 1\n'), 'sysctls'));
+
+// --- non-array shapes must not skip a check (APPS-012) -------------------
+// Docker Compose v5.3.1 rejects all three of these ("must be a array"), so they
+// are not an exploitable bypass — but CLAUDE.md §10 makes lockstep with the
+// platform's independent validator an invariant, and it must not depend on shape.
+test('APPS-012 scalar cap_add is rejected', () => rejects(svc('    cap_add: SYS_ADMIN\n'), 'cap_add'));
+test('APPS-012 scalar security_opt unconfined is rejected', () =>
+  rejects(svc('    security_opt: seccomp=unconfined\n'), 'unconfined'));
+test('APPS-012 scalar group_add docker is rejected', () => rejects(svc('    group_add: docker\n'), 'group_add'));
+test('APPS-012 scalar security_opt that is harmless still passes', () =>
+  clean(svc('    security_opt: no-new-privileges:true\n')));
+
 // --- file-based secrets / configs ---------------------------------------
 test('secret with a sensitive file source is rejected', () =>
   rejects(`services:\n  app:\n    image: n\nsecrets:\n  s:\n    file: /etc/shadow\n`, 'sensitive host path'));

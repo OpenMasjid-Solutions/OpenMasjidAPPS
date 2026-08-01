@@ -6,7 +6,10 @@
   "author": "Hasan Ismail",
   "description": "The app catalog for OpenMasjidOS. `npm run build` regenerates catalog.json from registry.yaml.",
   "scripts": {
-    "build": "node scripts/build-catalog.mjs"
+    "build": "node scripts/build-catalog.mjs",
+    "test": "node --test \"scripts/__tests__/*.test.mjs\" \"examples/*/src/js/__tests__/*.test.mjs\"",
+    "lint": "node scripts/lint.mjs",
+    "check": "npm run lint && npm test"
   },
   "dependencies": {
     "yaml": "^2.5.0"

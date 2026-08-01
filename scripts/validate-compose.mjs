@@ -224,6 +224,60 @@ export function validateCompose(text) {
     }
   }
 
+  // Top-level networks. This mirrors the external-volume rule above, for the same
+  // reason: `external: true` uses the network name verbatim and `name:` overrides
+  // the project-scoped name, so either attaches the app to a network it does not
+  // own — including the platform's own internal network, where the core API and
+  // other apps' containers live. classifyVolumeSource() never sees a network, so
+  // nothing caught this before. A listed app must own its network exactly as it
+  // must own its storage. Mirrors OpenMasjidOS apps/compose-validate.ts. (APPS-002)
+  const topNets = doc.networks && typeof doc.networks === 'object' ? doc.networks : {};
+  const declaredNets = new Set(Object.keys(topNets));
+  for (const [name, def] of Object.entries(topNets)) {
+    if (!def || typeof def !== 'object') continue; // `mynet:` with an empty body — project-scoped, fine
+
+    const driver = String(def.driver ?? '').toLowerCase();
+    if (driver === 'host' || driver === 'none') {
+      errors.add(`network "${name}": driver "${driver}" bypasses network isolation`);
+    }
+
+    const isExternal = isTruthyFlag(def.external) || (!!def.external && typeof def.external === 'object');
+    const explicit =
+      typeof def.name === 'string'
+        ? def.name
+        : def.external && typeof def.external === 'object' && typeof def.external.name === 'string'
+          ? def.external.name
+          : null;
+    if (!isExternal && explicit == null) continue;
+    const target = String(explicit ?? name).trim();
+    if (/^omos[-_]/i.test(target)) {
+      errors.add(
+        `network "${name}": attaches to an OpenMasjid platform network ("${target}") — that reaches the core and other apps' containers`,
+      );
+    } else {
+      errors.add(
+        `network "${name}": attaches to a pre-existing Docker network ("${target}") — a listed app must own its network`,
+      );
+    }
+  }
+
+  // A service must not join a network the file never declares: compose resolves it
+  // against pre-existing networks instead of creating a project-scoped one.
+  for (const [name, svc] of Object.entries(services)) {
+    if (!svc || typeof svc !== 'object') continue;
+    const nets = Array.isArray(svc.networks)
+      ? svc.networks
+      : svc.networks && typeof svc.networks === 'object'
+        ? Object.keys(svc.networks)
+        : [];
+    for (const n of nets) {
+      const key = typeof n === 'string' ? n : null;
+      if (key && key !== 'default' && !declaredNets.has(key)) {
+        errors.add(`service "${name}": joins network "${key}" without declaring it under top-level "networks:"`);
+      }
+    }
+  }
+
   // Top-level file-based secrets/configs bind a host file into the container.
   for (const [section, key] of [['secret', 'secrets'], ['config', 'configs']]) {
     const defs = doc[key] && typeof doc[key] === 'object' ? doc[key] : {};

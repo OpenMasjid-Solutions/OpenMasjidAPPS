@@ -147,6 +147,44 @@ test("external volume targeting another app's data is called out", () =>
 test('renamed volume is rejected', () =>
   rejects(`services:\n  app:\n    image: n\nvolumes:\n  d:\n    name: somebody-elses\n`, 'pre-existing docker volume'));
 
+// --- top-level networks (APPS-002) ---------------------------------------
+// The mirror of the external-volume rule. Every case below is VALID Docker
+// Compose (checked against Docker Compose v5.3.1) and used to pass with zero
+// errors and zero warnings.
+test('APPS-002 external network is rejected', () =>
+  rejects(`services:\n  app:\n    image: n\n    networks: [shared]\nnetworks:\n  shared:\n    external: true\n`, 'pre-existing docker network'));
+
+test('APPS-002 external network named omos_* is called out as a platform network', () =>
+  rejects(`services:\n  app:\n    image: n\n    networks: [omos_internal]\nnetworks:\n  omos_internal:\n    external: true\n`, 'openmasjid platform network'));
+
+test('APPS-002 the name: override form is rejected', () =>
+  rejects(`services:\n  app:\n    image: n\nnetworks:\n  default:\n    name: omos_core_default\n    external: true\n`, 'openmasjid platform network'));
+
+test('APPS-002 name: without external: is still rejected (it renames the scoped network)', () =>
+  rejects(`services:\n  app:\n    image: n\nnetworks:\n  mynet:\n    name: somebody-elses\n`, 'pre-existing docker network'));
+
+test('APPS-002 the long external form { external: { name } } is rejected', () =>
+  rejects(`services:\n  app:\n    image: n\nnetworks:\n  mynet:\n    external:\n      name: omos-donations_default\n`, 'openmasjid platform network'));
+
+test('APPS-002 network driver host/none is rejected', () => {
+  rejects(`services:\n  app:\n    image: n\nnetworks:\n  default:\n    driver: host\n`, 'bypasses network isolation');
+  rejects(`services:\n  app:\n    image: n\nnetworks:\n  default:\n    driver: none\n`, 'bypasses network isolation');
+});
+
+test('APPS-002 joining an undeclared network is rejected', () =>
+  rejects(svc('    networks: [not-declared]\n'), 'without declaring it'));
+
+test('APPS-002 an ordinary project-scoped network still passes', () => {
+  clean(`services:\n  app:\n    image: n\n    networks: [internal]\nnetworks:\n  internal:\n`);
+  clean(`services:\n  app:\n    image: n\n    networks:\n      internal:\n        aliases: [api]\nnetworks:\n  internal:\n    driver: bridge\n`);
+});
+
+test('APPS-002 no networks: block at all still passes (the common case)', () =>
+  clean(`services:\n  app:\n    image: n\n    ports: ["8080:80"]\n`));
+
+test('APPS-002 joining the implicit default network still passes', () =>
+  clean(svc('    networks: [default]\n')));
+
 // --- file-based secrets / configs ---------------------------------------
 test('secret with a sensitive file source is rejected', () =>
   rejects(`services:\n  app:\n    image: n\nsecrets:\n  s:\n    file: /etc/shadow\n`, 'sensitive host path'));

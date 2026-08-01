@@ -127,10 +127,37 @@ function parseAlertsManifest(id, alerts) {
   return out.length ? out : undefined;
 }
 
+// Ceilings for anything fetched from an app repo. The largest real manifest is a
+// couple of KB and the largest compose well under 10 KB, so these are generous —
+// they exist so one repo cannot stall or exhaust the unattended nightly rebuild.
+const FETCH_TIMEOUT_MS = 20_000;
+const MAX_FETCH_BYTES = 2 * 1024 * 1024; // 2 MiB
+
+// The build had no timeout and no size limit: res.text() buffered whatever the
+// remote sent, so a slow or huge response could hang the job (up to the 6-hour
+// Actions ceiling) or exhaust its memory. Read the body as a stream and stop the
+// moment it goes over budget, rather than discovering the size after buffering it.
+// (APPS-007)
 async function fetchText(url) {
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.text();
+
+  const declared = Number(res.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > MAX_FETCH_BYTES) {
+    throw new Error(`response is ${declared} bytes, over the ${MAX_FETCH_BYTES}-byte limit`);
+  }
+  if (!res.body) return '';
+
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of res.body) {
+    total += chunk.length;
+    if (total > MAX_FETCH_BYTES) {
+      throw new Error(`response exceeded the ${MAX_FETCH_BYTES}-byte limit`);
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString('utf8');
 }
 
 // Best-effort: resolve a mutable tag/branch to the commit SHA it currently points
@@ -141,6 +168,7 @@ async function resolveRefToSha(repo, ref) {
   try {
     const res = await fetch(`https://api.github.com/repos/${repo}/commits/${encodeURIComponent(ref)}`, {
       headers: { Accept: 'application/vnd.github.sha' },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) return null;
     const sha = (await res.text()).trim();
@@ -245,6 +273,17 @@ for (const entry of entries) {
     fail(`${id}: manifest "email" must be true or false`);
   }
   const alerts = parseAlertsManifest(id, m.alerts);
+
+  // The compose text is embedded verbatim into catalog.json, which every masjid
+  // fetches. A real one is well under 10 KB; anything near the fetch ceiling is a
+  // mistake or an attempt to bloat the catalog. (APPS-007)
+  const MAX_COMPOSE_BYTES = 64 * 1024;
+  if (Buffer.byteLength(composeText, 'utf8') > MAX_COMPOSE_BYTES) {
+    fail(
+      `${id}: docker-compose.yml is ${Buffer.byteLength(composeText, 'utf8')} bytes, over the ` +
+        `${MAX_COMPOSE_BYTES}-byte limit — it is embedded in catalog.json for every install`,
+    );
+  }
   const composeCheck = validateCompose(composeText);
   if (composeCheck.errors.length) {
     fail(`${id}: docker-compose.yml has disallowed settings:\n   - ${composeCheck.errors.join('\n   - ')}\n   See docs/BUILDING_AN_APP.md §2b (Security requirements).`);

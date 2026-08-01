@@ -121,6 +121,43 @@ test('a relative bind mount warns but does not fail', () =>
 // --- config merging the checker cannot see --------------------------------
 test('YAML merge key is rejected', () =>
   rejects(`x-base: &b\n  image: n\nservices:\n  app:\n    <<: *b\n`, 'merge key'));
+
+test('YAML merge key is still caught in its other spellings', () => {
+  rejects(`services:\n  app:\n    <<: *b\n`, 'merge key'); // space before the colon
+  rejects(`services:\n  app:\n\t<<: *b\n`, 'merge key'); // tab-indented
+  rejects(`<<: *b\nservices:\n  app:\n    image: n\n`, 'merge key'); // column 0
+});
+
+test('APPS-007 the merge-key scan is linear, not quadratic, on hostile input', () => {
+  // The old /(^|\n)\s*<<\s*:/ was quadratic: \s also matches \n, so the (^|\n)
+  // alternation and the \s* quantifier overlapped and a match could start at every
+  // newline. Measured on the old pattern: 99ms at 20 KB, 6.4s at 160 KB, 25.7s at
+  // 320 KB — roughly 4x for each doubling. The new anchored pattern is linear.
+  //
+  // Timing thresholds are flaky on shared CI, so assert the SHAPE (doubling the
+  // input roughly doubles the work) rather than an absolute wall-clock number.
+  const scan = (text) => {
+    const t0 = process.hrtime.bigint();
+    for (let i = 0; i < 20; i++) /^[ \t]*<<[ \t]*:/m.test(text);
+    return Number(process.hrtime.bigint() - t0) / 1e6;
+  };
+  const evil = (bytes) => '\n'.repeat(bytes / 2) + ' '.repeat(bytes / 2);
+  const small = scan(evil(200_000));
+  const large = scan(evil(800_000)); // 4x the input
+  // Linear => ~4x. Quadratic => ~16x. Allow generous headroom and still separate them.
+  assert.ok(large < small * 8 + 50, `4x input took ${(large / small).toFixed(1)}x the time — looks super-linear`);
+});
+
+test('APPS-007 a whole hostile document is validated well inside the fetch ceiling', () => {
+  // fetchText caps a fetched compose at 2 MiB, so that is the worst case that can
+  // reach the validator. The residual cost is the YAML parser walking the document,
+  // which is linear in size (~1.2s at 2 MiB). The old regex alone needed ~16 min.
+  const evil = '\n'.repeat(1024 * 1024) + ' '.repeat(1024 * 1024); // 2 MiB
+  const t0 = process.hrtime.bigint();
+  validateCompose(evil);
+  const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+  assert.ok(ms < 15_000, `2 MiB took ${ms.toFixed(0)}ms`);
+});
 test('top-level include is rejected', () =>
   rejects(`include:\n  - other.yml\nservices:\n  app:\n    image: n\n`, 'include'));
 test('service extends is rejected', () =>

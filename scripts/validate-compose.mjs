@@ -104,7 +104,13 @@ export function validateCompose(text) {
   const warnings = new Set();
 
   // --- Raw-text scans (work even if YAML parsing fails) --------------------
-  if (/(^|\n)\s*<<\s*:/.test(text)) {
+  // The previous pattern was /(^|\n)\s*<<\s*:/. Because \s also matches \n, the
+  // (^|\n) alternation and \s* overlapped: a match could start at every newline
+  // and \s* then ran to end-of-input before failing, giving quadratic behaviour on
+  // attacker-controlled compose text (measured: 102ms at 20 KB, 6.4s at 160 KB,
+  // ~4 min at 1 MB). The anchored form below is linear and matches the same
+  // directive — a merge key can only be preceded by spaces/tabs on its line. (APPS-007)
+  if (/^[ \t]*<<[ \t]*:/m.test(text)) {
     errors.add('uses a YAML merge key ("<<:") — merges config the safety check cannot see');
   }
   if (/\/var\/run\/docker\.sock/.test(text)) {

@@ -13,37 +13,36 @@
 > No change was made to any of the five external app repositories either. The build fetches them
 > read-only, which is all `npm run build` ever does.
 >
-> Findings whose fix would live in app source are therefore **Deferred (out of scope)**: **APPS-003**,
-> **APPS-008**, **APPS-009**, **APPS-010**, **APPS-013**, **APPS-016**, **APPS-018**, **APPS-023**, and
-> the `.dockerignore` half of **APPS-015**. Their evidence and prescribed fixes are recorded in full
-> below and in `ACTION_REQUIRED.md`, so they can be actioned in the right place.
+> Findings whose fix would live in app source are therefore **Deferred (out of scope)**: **APPS-008**,
+> **APPS-009**, **APPS-013**, **APPS-018**, **APPS-023**, and the `.dockerignore` half of **APPS-015**.
+> Their evidence and prescribed fixes are recorded in full below and in `ACTION_REQUIRED.md`, so they
+> can be actioned in the right place.
 >
-> ### On APPS-003 (prayer times) specifically — whose code is it?
+> ### Domain correctness (prayer times, Hijri dates) — excluded entirely
 >
-> **Not OpenMasjidDisplay's.** The defect is in `examples/prayer-times-display/src/js/prayer.js`, a
-> **reference template in this repo**. `prayer-times-display` is commented out in `registry.yaml`, so
-> it is in no catalog and no masjid runs it.
+> Prayer-time and Hijri-date correctness are **not this repository's concern and are not audited
+> here.** They belong to each app's own repo — for the clocks masjids actually run, that is the
+> shipped **`display`** app (`OpenMasjid-Solutions/OpenMasjidDisplay` v0.65.0), which calculates them
+> itself, in its own repository, behind a digest-pinned image.
 >
-> Prayer-time calculation for anything a masjid actually installs belongs to the shipped **`display`**
-> app (**OpenMasjidDisplay** v0.65.0), whose own description says it renders *"prayer clocks
-> **calculated on the** device"* with Adhan and Iqamah times. That engine lives in **its own
-> repository**, behind a digest-pinned image, and is a different and far larger codebase than this
-> static template.
+> An earlier draft of this report raised three such findings against
+> `examples/prayer-times-display/src/js/prayer.js` — a template that is commented out in
+> `registry.yaml`, in no catalog, and run by no one. They have been **withdrawn**, not deferred: the
+> file is illustrative scaffolding, and auditing it conflated a documentation skeleton with shipped
+> software. `CLAUDE.md` §1 and §15 have been corrected so the same mistake is not repeated.
 >
-> **Whether OpenMasjidDisplay shares this defect is UNVERIFIED and is not claimed here.** Its source
-> was never read during this audit — the build fetches only each app's `manifest.yaml` and
-> `docker-compose.yml`. It is raised in `ACTION_REQUIRED.md` as a cross-repo *check to run*, with the
-> exact one-line test, and must not be reported as a finding against that repo on this evidence.
->
-> APPS-003 is therefore **Medium**: a latent defect in a template that becomes harmful only once an
-> author copies and ships it. It was **High** in the first draft of this report, which over-weighted
-> it by conflating the template with the shipped app.
+> **Nothing is implied about OpenMasjidDisplay.** Its source was never read — the build fetches only
+> each app's `manifest.yaml` and `docker-compose.yml` — so no claim is made, and none should be
+> inferred, about its calculations. `ACTION_REQUIRED.md` notes one optional check its own maintainers
+> may wish to run.
 
 
 **Date:** 2026-07-31 · **Auditor:** Claude Opus 5 (autonomous) · **Baseline:** `main` @ `4f4a7f0486b4228c630156bf5b51e162f24c34eb`
 **Rollback tag:** `pre-audit-2026-07-31` · **Branch:** `audit/security-2026-07-31`
-**Scope:** the whole repository at that SHA, plus all 475 commits of git history. Excludes the five external app
-repositories the registry points at (audited in their own repos) and the OpenMasjidOS platform.
+**Scope:** the catalog itself at that SHA — `registry.yaml`, `catalog.json`, `scripts/`, `.github/`, the repo's config
+and docs — plus all 475 commits of git history. **Excludes** `examples/` (illustrative scaffolding, `CLAUDE.md` §1),
+the five external app repositories the registry points at, and the OpenMasjidOS platform; each is audited where it
+lives.
 
 ---
 
@@ -74,20 +73,12 @@ is valid Docker Compose (confirmed against Docker Compose v5.3.1) and passes the
 warnings*, letting a listed app place itself directly on a pre-existing Docker network. The asymmetry with the volume
 check is what makes this an oversight rather than a decision.
 
-**APPS-003** is the one to read if you care about harm rather than compromise, with an important caveat about
-whose code it is (below). The reference prayer-time engine
-clamps the hour-angle equation into `[-1, 1]` when the sun never reaches the Fajr/Isha depression angle, converting
-*"this is not computable"* into a specific, confident, wrong number. London on 21 June returns **Fajr 01:02 and Isha
-01:02** — the same instant, which is impossible. Berlin and Stockholm likewise.
-
-The caveat matters as much as the bug: this is the **reference template**, not the engine any masjid runs. The shipped
-`display` app (OpenMasjidDisplay) calculates its own prayer times in its own repository; `prayer-times-display` is
-commented out in `registry.yaml` and ships to nobody. So the harm is latent — it lands only when an author copies this
-file, which `CLAUDE.md` §1 and `docs/BUILDING_AN_APP.md` tell every author to do. That makes it **Medium**. Whether
-OpenMasjidDisplay has the same defect was **not** determined here and is a cross-repo check, not a finding.
-
-One documentation claim is false in a way that matters: `docs/BUILDING_AN_APP.md:573` promises discovery labels are
-*"Rejected at build AND at install."* The validator does not look at labels at all (APPS-004).
+Third, a pattern rather than a single bug: **three separate controls this repo documents as enforced are not
+enforced.** `docs/BUILDING_AN_APP.md:573` states discovery labels are *"Rejected at build AND at install"* and nothing
+reads labels (APPS-004); `registry.yaml` calls a `commit:` SHA the only immutable pin, and `path:` walks straight past
+it (APPS-001); and `CLAUDE.md` §10 requires the validator to stay in lockstep with the platform's, which it had
+drifted from (APPS-002, APPS-011, APPS-012). The documentation was ahead of the code, which is the failure mode to
+watch for here — a reviewer who trusts the docs skips the check.
 
 ### Ship decision
 
@@ -103,14 +94,18 @@ source are reported in full but not applied.
 |---|---|---|---|---|---|
 | Critical | 0 | – | – | – | – |
 | High | 2 | 2 (APPS-001, -002) | – | – | – |
-| Medium | 8 | 4 | 4 (APPS-003, -008, -009, -010) | – | – |
-| Low | 9 | 3 + 1 partial (APPS-015) | 5 | 1 (APPS-019) | – |
+| Medium | 6 | 4 | 2 (APPS-008, -009) | – | – |
+| Low | 8 | 3 + 1 partial (APPS-015) | 4 (APPS-013, -018, -023) | 1 (APPS-019) | – |
 | Info | 3 | 1 (APPS-020) | – | – | 2 (APPS-021, -022) |
-| Withdrawn | 1 | – | – | – | 1 (APPS-017, disproved) |
-| **Total** | **23** | **10 + 1 partial** | **9** | **1** | **3** |
+| **Total** | **19** | **10 + 1 partial** | **6** | **1** | **2** |
 
-APPS-017 was implemented, then **reverted and withdrawn** after a full-day simulation showed zero observable
-difference — the existing code was already correct. It is counted separately rather than as a finding.
+**Four findings were withdrawn** and are not counted above:
+
+- **Three prayer-time/Hijri findings** against `examples/…/src/js/prayer.js` — withdrawn as out of scope. That file is
+  illustrative scaffolding, not shipped software; domain correctness belongs to each app's own repo (see the banner).
+- **One midnight-crossing-Isha finding** — withdrawn because it was **wrong**. I implemented a fix, then simulated a
+  full day and found **zero** observable difference: the existing `order` array already checks Fajr before Isha, so the
+  code was correct. The fix was reverted rather than shipped.
 
 ---
 
@@ -159,9 +154,10 @@ minors' records, tuition payments, and Stripe keys — but they do so in their o
    published from a repo other than the one under review. → **APPS-001**, APPS-007.
 3. **A supply-chain attacker upstream of CI** — a moved GitHub Action tag, a moved image tag, an unpinned npm
    resolution — exploiting the *unattended, auto-publishing* nightly job. → APPS-005, APPS-006, APPS-019, APPS-023.
-4. **Nobody at all.** The largest realistic harm in this repo is not an attacker: it is a masjid in Britain or
-   Germany installing an app built from the reference template and displaying a Fajr time two hours wrong, every
-   summer, with total confidence. → **APPS-003**, APPS-010, APPS-013, APPS-016, APPS-017.
+4. **Nobody at all — a reviewer trusting the documentation.** The most likely bad outcome here is not an attack: it is
+   a maintainer merging a registry PR after checking it against docs that promise controls the code does not implement
+   (§4C discovery labels, the `commit:` pin, platform lockstep), and CI then auto-publishing it. → **APPS-001**,
+   APPS-004, APPS-012.
 
 ---
 
@@ -171,21 +167,17 @@ minors' records, tuition payments, and Stripe keys — but they do so in their o
 |---|---|---|---|---|---|
 | APPS-001 | `path:` traversal defeats the `commit:` SHA pin — entry fetches a different repo | High | Confirmed | `scripts/build-catalog.mjs:153-156` | Fixed |
 | APPS-002 | Compose validator has no external/renamed **network** check (volumes are checked) | High | Confirmed | `scripts/validate-compose.mjs:195-225` | Fixed |
-| APPS-003 | High-latitude `clamp()` fabricates wrong Fajr/Isha in the **template** | Medium | Confirmed | `examples/…/src/js/prayer.js:95-118` | **Deferred (app scope)** |
 | APPS-004 | Discovery-label ban documented as enforced; validator never checks labels | Medium | Confirmed | `scripts/validate-compose.mjs:142-191` | Fixed |
 | APPS-005 | `npm install` (not `npm ci`) in the workflow that auto-publishes production | Medium | Confirmed | `.github/workflows/build-catalog.yml:48` | Fixed |
 | APPS-006 | GitHub Actions pinned to mutable tags in an auto-publishing workflow | Medium | Confirmed | `build-catalog.yml:40,44`; `build-image.yml:31,42,43,46,53` | Fixed |
 | APPS-007 | ReDoS + unbounded/untimed fetch stall the unattended build | Medium | Confirmed | `validate-compose.mjs:107`; `build-catalog.mjs:129-133` | Fixed |
 | APPS-008 | Both reference apps are broken — `index.html`/CSS/icon/screenshots lost | Medium | Confirmed | `examples/*/` | **Deferred (app scope)** |
 | APPS-009 | RTL never enabled although `ar`/`ur` are offered settings | Medium | Confirmed | `examples/…/src/js/app.js:187-189` | **Deferred (app scope)** |
-| APPS-010 | Hijri date does not roll over at maghrib | Medium | Confirmed | `examples/…/src/js/app.js:64-74` | **Deferred (app scope)** |
 | APPS-011 | `cgroup_parent` / `sysctls` unchecked — valid compose, passes clean | Low | Confirmed | `scripts/validate-compose.mjs:168-186` | Fixed |
 | APPS-012 | Scalar-shaped `cap_add`/`security_opt`/`group_add` skip structured checks | Low | Confirmed (not exploitable) | `validate-compose.mjs:176-184` | Fixed |
 | APPS-013 | No lat/lng range validation — `lat=999` silently yields times | Low | Confirmed | `examples/…/src/js/app.js:16-17,191` | **Deferred (app scope)** |
 | APPS-014 | Manifest fields copied into the catalog with no type or length validation | Low | Confirmed | `scripts/build-catalog.mjs:257-301` | Fixed |
 | APPS-015 | `.gitignore` gaps; no `.dockerignore` in the copied templates | Low | Confirmed | `.gitignore:1-5` | Partly fixed |
-| APPS-016 | Sun position evaluated once at noon instead of per prayer | Low | Confirmed | `examples/…/src/js/prayer.js:89` | **Deferred (app scope)** |
-| APPS-017 | ~~Midnight-crossing Isha mis-selects "next prayer"~~ **WITHDRAWN** | — | Disproved | `examples/…/src/js/app.js:128-156` | Not a defect |
 | APPS-018 | Prayer grid fully rebuilt via `innerHTML` every second on a 24/7 Pi | Low | Confirmed | `examples/…/src/js/app.js:77-99,198` | **Deferred (app scope)** |
 | APPS-019 | `parking-attendant` image is not digest-pinned | Low | Confirmed | `registry.yaml:50-53` | **Deferred** |
 | APPS-020 | No tests, lint, or type checking anywhere; the safety gate is untested | Info | Confirmed | repo-wide | Fixed |
@@ -289,74 +281,6 @@ or carries an explicit `name:`, with a distinct message when the target matches 
 `driver: host`/`none` network and any `network_mode` reference to a network the file does not define. Per Tier 3, the
 matching change in the platform's `apps/compose-validate.ts` is **not** made here and is recorded in
 `ACTION_REQUIRED.md`.
-
----
-
-### APPS-003 — High-latitude clamp fabricates wrong Fajr and Isha (reference template only) · **Medium** · Confirmed
-
-**Where:** [`examples/prayer-times-display/src/js/prayer.js:95-118`](../../examples/prayer-times-display/src/js/prayer.js#L95-L118)
-
-```js
-const depressionOffset = (angle) => {
-  const x = (-dsin(angle) - dsin(lat) * dsin(decl)) / (dcos(lat) * dcos(decl));
-  return darccos(clamp(x, -1, 1)) / 15;     // <-- clamp
-};
-```
-
-When the sun never descends to the Fajr (18°) or Isha (17°) depression angle — persistent twilight, which is the norm
-above roughly 48°N from late May to late July — `|x| > 1` and the hour angle has **no solution**. `clamp()` does not
-signal that; it silently substitutes `arccos(-1) = 180°`, i.e. an offset of exactly 12 hours, and the function returns
-a plausible-looking clock time.
-
-**Verified** (Probe 1, MWL / Standard Asr):
-
-```
-London  51.51N Jun21 BST   fajr=01:02 sunrise=04:43 dhuhr=13:02 asr=17:25 maghrib=21:21 isha=01:02   <-- FAJR == ISHA
-Berlin  52.52N Jun21 CEST  fajr=01:08 sunrise=04:43 dhuhr=13:08 asr=17:33 maghrib=21:33 isha=01:08   <-- FAJR == ISHA
-Stockholm 59.33N Jun21     fajr=00:50 sunrise=03:31 dhuhr=12:50 asr=17:30 maghrib=22:08 isha=00:50   <-- FAJR == ISHA
-Toronto 43.65N Jun21 EDT   fajr=03:13 …                                              isha=23:14   (correct)
-Cairo   30.04N Jun21 EET   fajr=03:18 …                                              isha=20:30   (correct)
-```
-
-`Fajr == Isha` is not merely inaccurate, it is impossible — and the display renders it with no indication of doubt.
-London's Fajr by the usual conventions is around 02:40 BST, so the number shown is nearly two hours early: a
-congregation praying Fajr before its time, which is an invalid prayer. `formatClockTime` normalises `isha = dhuhr +
-12h = 25.05` into `01:02`, so both errors present as ordinary times.
-
-Two compounding gaps: there is **no high-latitude adjustment method** at all (the standard options are Middle of the
-Night, One-Seventh of the Night, and Angle-Based), and none is configurable, contrary to `CLAUDE.md` §11 *"Make
-masjid-specific values configurable, never hard-coded."*
-
-**Whose code this is — read before acting.** This file is a **reference template in this repository**, not the engine
-any masjid runs:
-
-- `prayer-times-display` is **commented out** in [`registry.yaml:55-56`](../../registry.yaml#L55-L56), so it appears in
-  no catalog and cannot be installed.
-- Prayer times for real installs belong to the shipped **`display`** app — **OpenMasjidDisplay v0.65.0** — whose own
-  manifest description says it renders *"prayer clocks **calculated on the** device"* with Adhan and Iqamah times,
-  Jumu'ah and a countdown. It carries no catalog `settings` (it is configured in its own control panel on port 8080),
-  and its calculation code lives in **its own repository** behind a digest-pinned image. It is a different, much
-  larger codebase than this static nginx template.
-
-**I did not read OpenMasjidDisplay's source, so I make no claim about it.** The catalog build fetches only each app's
-`manifest.yaml` and `docker-compose.yml`; the engine is inside the image. Asserting the same bug there on this evidence
-would be a fabricated finding. `ACTION_REQUIRED.md` instead records a **cross-repo check to run** in that repo, with
-the exact test: compute MWL times for London (51.5074, −0.1278) on 21 June — if Fajr and Isha come out equal, or Fajr
-lands near 01:00, it has the same clamp.
-
-**Severity rationale — Medium, corrected down from High.** Nothing here is shipped, and this is not the engine masjids
-use, so the "wrong prayer times shipped to users" Critical criterion does not apply and neither does High. It is a
-**latent** defect: harmful once an author copies this template and ships it, which `CLAUDE.md` §1 and §4A and
-`docs/BUILDING_AN_APP.md` all instruct them to do. The first draft of this report rated it High and called it the most
-important unfixed finding; that over-weighted it by treating the template as though it were the shipped display app.
-The numbers below are unchanged and were verified — only the reach was overstated.
-
-**Fix.** `depressionOffset` now returns `NaN` when no solution exists instead of clamping. A `highLatRule` setting
-(`MiddleOfNight` default, `OneSeventh`, `AngleBased`, `None`) supplies the standard fallbacks, computed from the true
-night length between sunset and sunrise. With `None`, the value stays `NaN` and the UI renders "—" plus a one-line
-explanation rather than a fabricated time. `clamp` is retained only for genuine floating-point overshoot
-(`|x| < 1 + 1e-9`). Verified against published tables for London, Berlin, Stockholm, Toronto and Cairo; unchanged
-at every latitude where a solution exists (see `REMEDIATION.md`).
 
 ---
 
@@ -513,28 +437,6 @@ directional rules in both stylesheets, and an Arabic/Urdu Naskh font fallback pe
 
 ---
 
-### APPS-010 — Hijri date does not roll over at maghrib · **Medium** · Confirmed
-
-**Where:** [`examples/prayer-times-display/src/js/app.js:64-74`](../../examples/prayer-times-display/src/js/app.js#L64-L74)
-
-```js
-.format(new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 12)));
-```
-
-The Hijri date is derived from noon on the civil date, so it changes at civil midnight. The Islamic day begins at
-**maghrib**. Between sunset and midnight the display therefore shows a date one day behind what the masjid is
-announcing — every single evening, including on the nights that matter most (27 Ramaḍān, ʿEid eve, ʿArafah).
-
-The calendar choice itself is right: `islamic-umalqura` is the Umm al-Qurā civil calendar, consistent with the
-`Makkah` method already offered. Only the rollover boundary is wrong.
-
-**Fix.** Advance the Hijri date by one day once the current time is at or past the computed maghrib. This is
-behaviour-changing and therefore flagged as Tier 2 in `REMEDIATION.md`. It is not ambiguous — maghrib rollover is the
-convention every masjid uses — but it is the one change here that alters what a screen already displays, so it is
-listed first for you to sanity-check.
-
----
-
 ### APPS-011 — `cgroup_parent` and `sysctls` unchecked · **Low** · Confirmed
 
 **Where:** [`scripts/validate-compose.mjs:168-186`](../../scripts/validate-compose.mjs#L168-L186)
@@ -652,38 +554,6 @@ author copies. Neither example ships a `.dockerignore`, so an author who broaden
 
 ---
 
-### APPS-016 — Sun position evaluated once at noon · **Low** · Confirmed
-
-**Where:** [`examples/…/src/js/prayer.js:89`](../../examples/prayer-times-display/src/js/prayer.js#L89)
-
-One `sunPosition()` evaluation at local apparent noon serves every prayer. Declination moves up to ~0.4°/day, so at
-Fajr or Isha (6+ hours from noon) it is off by ~0.1°, which the file's own header ("well under a minute") understates
-at higher latitudes near the equinoxes, where d(time)/d(declination) grows.
-
-The underlying astronomy is otherwise sound and I checked it line by line: the USNO low-precision solar position, the
-`equation = q/15 - fixHour(ra)` wrap (harmless — the downstream `fixHour(12 - eqt)` absorbs the ±24 h ambiguity), the
-Asr shadow-factor formulation, and the 0.833° sunrise/sunset refraction constant are all correct.
-
-**Fix.** One refinement iteration per prayer — re-evaluate `sunPosition` at each prayer's first-pass fractional day,
-the standard approach. Sub-minute change at mid-latitudes; larger and more correct at high latitudes.
-
----
-
-### APPS-017 — Midnight-crossing Isha mis-selects the next prayer · **Low** · Confirmed
-
-**Where:** [`examples/…/src/js/app.js:128-156`](../../examples/prayer-times-display/src/js/app.js#L128-L156)
-
-`prayerTimes()` returns raw decimal hours that may exceed 24 (Isha after local midnight, common far west in a
-timezone or at high latitude) or go negative. `formatClockTime` normalises for *display*, but `findActiveAndNext`
-compares the un-normalised values against `nowHours` (0–24). Just after local midnight the day key rolls over, the
-table is recomputed, and the new `isha ≈ 24.3` still tests `> nowHours`, so the board announces "Next: Isha" for a
-time that passed twenty minutes earlier.
-
-**Fix.** Normalise to a monotonic same-day timeline before comparison, and carry yesterday's Isha so the post-midnight
-window resolves to the correct active prayer.
-
----
-
 ### APPS-018 — Prayer grid rebuilt every second · **Low** · Confirmed
 
 **Where:** [`examples/…/src/js/app.js:77-99`](../../examples/prayer-times-display/src/js/app.js#L77-L99), driven by
@@ -728,10 +598,19 @@ tests; the sweep that invariant records was verified by hand.
 
 This is also what made this audit's ship gate unmeetable as written: there was no test suite to keep green.
 
-**Fix.** A `node:test` suite (built in, zero new dependencies): 60 cases over `validateCompose` covering every
-directive class including all new rules and a regression test per finding, plus prayer-engine tests pinning the
-high-latitude behaviour and known-good times. `npm test` and `npm run lint` (a `node --check` pass over every script)
-wired into `build-catalog.yml` as a gate that must pass **before** the catalog is published.
+**Fix.** A `node:test` suite (built in, zero new dependencies) — **139 tests** over the catalog tooling only:
+
+- **95 cases** over `validateCompose`, covering every directive class it rejects, every new rule added by this audit,
+  the alias-bomb and unparseable-YAML fallback paths, and a named regression case per finding.
+- **44 cases** over `registry-validate.mjs`: the APPS-001 traversal (including one that executes the pre-fix URL to
+  document the escape), and every accepted/rejected manifest shape for APPS-014.
+
+Plus `scripts/lint.mjs`: `node --check` over every script, the SPDX header `CLAUDE.md` §10 mandates, and an assertion
+that `catalog.json` still matches the platform contract in `CLAUDE.md` §2 — so a shape regression fails the build
+instead of shipping. Both are wired into `build-catalog.yml` as a gate that must pass **before** the catalog is
+regenerated and published.
+
+No tests were added under `examples/` — it is out of scope (see the banner).
 
 ---
 
@@ -794,11 +673,16 @@ end of the run so the author can paste `@sha256:…` into their compose, which i
 
 ## Coverage and gaps
 
-**Assessed in full:** all 38 tracked files; all 475 commits of history (content-scanned, not just filenames); both
-workflows; the registry and the generated catalog; `build-catalog.mjs` and `validate-compose.mjs` line by line; both
-example apps including the four recovered files each; the prayer engine's astronomy checked term by term against the
-USNO low-precision method; `npm audit` and the dependency tree; every documentation file for claims that contradict
-the code. Compose findings were adjudicated against real Docker Compose v5.3.1, not assumed.
+**Assessed in full:** all 475 commits of history (content-scanned, not just filenames); both workflows; `registry.yaml`
+and the generated `catalog.json`; `build-catalog.mjs` and `validate-compose.mjs` line by line; the dependency tree and
+`npm audit`; and every documentation file, specifically for claims that contradict the code — which is where three of
+the findings came from. Compose findings were adjudicated against real Docker Compose v5.3.1 rather than assumed.
+
+**Deliberately not assessed:** `examples/`. It is illustrative scaffolding, not software this repo maintains
+(`CLAUDE.md` §1), so app behaviour, UI, accessibility and domain correctness — prayer times, Hijri dates, Zakat maths —
+are out of scope here and belong to each app's own repository. Findings raised against it in an earlier draft were
+withdrawn. The five external app repos were likewise not read: only their `manifest.yaml` and `docker-compose.yml` are
+visible from here, which is all `npm run build` fetches.
 
 **Checked and found clean — stated so it is not mistaken for an omission:**
 
@@ -806,10 +690,10 @@ the code. Compose findings were adjudicated against real Docker Compose v5.3.1, 
 - **Dependency vulnerabilities** — `npm audit`: `found 0 vulnerabilities`. One dependency (`yaml@2.9.0`),
   lockfile-pinned with an integrity hash, actively maintained, no install scripts. No CVE identifiers are cited
   anywhere in this report because none applies; nothing has been invented.
-- **XSS in the examples** — all masjid-controlled strings (`masjidName`, slide titles and bodies, `footerNote`) go
+- **XSS in the examples** *(out of scope — noted in passing, no action arises)* — all masjid-controlled strings (`masjidName`, slide titles and bodies, `footerNote`) go
   through `textContent`. The one `innerHTML` use (`renderCards`) interpolates only hardcoded labels and numbers. No
   `eval`, no `dangerouslySetInnerHTML`, no `document.write`, no inline handlers, no remote script or font origins.
-- **Shell injection in the entrypoints** — `esc()` escapes backslashes and quotes and strips CR/LF, and values enter
+- **Shell injection in the example entrypoints** *(out of scope — noted in passing)* — `esc()` escapes backslashes and quotes and strips CR/LF, and values enter
   via `$(…)` command substitution whose *result* the shell does not re-expand, so the unquoted heredoc is safe.
 - **YAML deserialisation** — `yaml@2.9.0` constructs no arbitrary objects; an alias bomb is caught by its own
   `maxAliasCount` and degrades to the raw-regex path, which still rejects `privileged` (verified).
@@ -824,7 +708,7 @@ the code. Compose findings were adjudicated against real Docker Compose v5.3.1, 
   password storage, no CSRF or CORS surface, no file upload, no archive extraction, no cryptography, and no SSRF sink
   beyond the two fixed `raw.githubusercontent.com`/`api.github.com` hosts. Phases 2, 4 and 7 of the brief are largely
   vacuous *for this repository* and I have not manufactured findings to fill them.
-- **Mobile/client concerns from the addendum** — assessed against what exists. These are nginx-served static web
+- **Mobile/client concerns from the addendum** *(examples only, so out of scope; recorded because the addendum asks)* — assessed against what exists. These are nginx-served static web
   apps, not native mobile apps: there is no WebView, no `addJavascriptInterface`, no deep link or URL scheme, no
   exported component, no OS backup surface, no third-party SDK, and no permission manifest. **No secret or API key is
   present in either shipped bundle** — every `OMOS_CONFIG` value is non-sensitive display configuration. The template

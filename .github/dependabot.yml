@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 OpenMasjid-Solutions
+#
+# Every action in this repo is pinned to a full commit SHA (see build-catalog.yml
+# and cla.yml). That stops a moved tag from reaching the workflow that publishes
+# catalog.json — but it also freezes the version, so a pin left alone becomes a
+# stale pin with known bugs. Dependabot keeps the pins moving: it opens a PR that
+# updates the SHA and the trailing "# vN" comment together, which a human reviews.
+#
+# Scope is deliberately narrow. It watches this repo's own tooling only:
+#   - github-actions: the workflows the catalog runs on
+#   - npm: the single runtime dependency (yaml)
+# It does NOT watch examples/ — that is illustrative scaffolding, not software
+# this repo maintains (CLAUDE.md §1), and its workflows never run from here.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'chore(ci)'
+    labels: [dependencies, github-actions]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'chore(deps)'
+    labels: [dependencies]
+    # A major bump to the one dependency the build parses untrusted YAML with is a
+    # review decision, not an automatic one.
+    ignore:
+      - dependency-name: 'yaml'
+        update-types: [version-update:semver-major]

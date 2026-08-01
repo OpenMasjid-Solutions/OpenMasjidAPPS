@@ -3,6 +3,26 @@
 
 # OpenMasjidAPPS — Security & Code-Health Audit
 
+> ## ⚠ Scope: catalog only — app findings are reported, not fixed
+>
+> This audit **reports on the whole repository** but the branch **only changes the catalog
+> itself**: `registry.yaml`, `scripts/`, `.github/workflows/`, `.gitignore`, `package.json` and
+> these documents. **No app source is modified**, including the two reference apps under
+> `examples/` — consistent with `CLAUDE.md` §1 and §15 ("This repo is **catalog-only**").
+>
+> No change was made to any of the five external app repositories either. The build fetches them
+> read-only, which is all `npm run build` ever does.
+>
+> Findings whose fix would live in app source are therefore **Deferred (out of scope)**, however
+> severe: **APPS-003** (high-latitude prayer times), **APPS-008**, **APPS-009**, **APPS-010**,
+> **APPS-013**, **APPS-016**, **APPS-018**, **APPS-023**, and the `.dockerignore` half of
+> **APPS-015**. Their evidence, attack paths and prescribed fixes are recorded in full below and in
+> `ACTION_REQUIRED.md`, so they can be actioned in the right place.
+>
+> **APPS-003 remains the most important unfixed finding** and is not made safe by being out of
+> scope here — see its entry for the verified numbers.
+
+
 **Date:** 2026-07-31 · **Auditor:** Claude Opus 5 (autonomous) · **Baseline:** `main` @ `4f4a7f0486b4228c630156bf5b51e162f24c34eb`
 **Rollback tag:** `pre-audit-2026-07-31` · **Branch:** `audit/security-2026-07-31`
 **Scope:** the whole repository at that SHA, plus all 475 commits of git history. Excludes the five external app
@@ -54,14 +74,21 @@ artifact — the platform fetches the raw file directly, with no build or deploy
 `scripts/**` additionally triggers a workflow that regenerates and re-publishes it unattended. Everything below is on
 `audit/security-2026-07-31` with a PR for human review.
 
-| Severity | Count | Shipped to branch | Deferred |
-|---|---|---|---|
-| Critical | 0 | – | – |
-| High | 3 | 3 | 0 |
-| Medium | 7 | 7 | 0 |
-| Low | 9 | 8 | 1 |
-| Info | 4 | 1 | 3 (report-only) |
-| **Total** | **23** | **19** | **4** |
+**Second scope limit (see the banner above):** the branch changes the catalog only. Findings whose fix belongs in app
+source are reported in full but not applied.
+
+| Severity | Count | Fixed on branch | Deferred — app scope | Deferred — other | No action needed |
+|---|---|---|---|---|---|
+| Critical | 0 | – | – | – | – |
+| High | 3 | 2 (APPS-001, -002) | 1 (**APPS-003**) | – | – |
+| Medium | 7 | 4 | 3 (APPS-008, -009, -010) | – | – |
+| Low | 9 | 3 + 1 partial (APPS-015) | 5 | 1 (APPS-019) | – |
+| Info | 3 | 1 (APPS-020) | – | – | 2 (APPS-021, -022) |
+| Withdrawn | 1 | – | – | – | 1 (APPS-017, disproved) |
+| **Total** | **23** | **10 + 1 partial** | **9** | **1** | **3** |
+
+APPS-017 was implemented, then **reverted and withdrawn** after a full-day simulation showed zero observable
+difference — the existing code was already correct. It is counted separately rather than as a finding.
 
 ---
 
@@ -122,27 +149,27 @@ minors' records, tuition payments, and Stripe keys — but they do so in their o
 |---|---|---|---|---|---|
 | APPS-001 | `path:` traversal defeats the `commit:` SHA pin — entry fetches a different repo | High | Confirmed | `scripts/build-catalog.mjs:153-156` | Fixed |
 | APPS-002 | Compose validator has no external/renamed **network** check (volumes are checked) | High | Confirmed | `scripts/validate-compose.mjs:195-225` | Fixed |
-| APPS-003 | High-latitude `clamp()` fabricates wrong Fajr/Isha (`fajr == isha`) | High | Confirmed | `examples/…/src/js/prayer.js:95-118` | Fixed |
+| APPS-003 | High-latitude `clamp()` fabricates wrong Fajr/Isha (`fajr == isha`) | High | Confirmed | `examples/…/src/js/prayer.js:95-118` | **Deferred (app scope)** |
 | APPS-004 | Discovery-label ban documented as enforced; validator never checks labels | Medium | Confirmed | `scripts/validate-compose.mjs:142-191` | Fixed |
 | APPS-005 | `npm install` (not `npm ci`) in the workflow that auto-publishes production | Medium | Confirmed | `.github/workflows/build-catalog.yml:48` | Fixed |
 | APPS-006 | GitHub Actions pinned to mutable tags in an auto-publishing workflow | Medium | Confirmed | `build-catalog.yml:40,44`; `build-image.yml:31,42,43,46,53` | Fixed |
 | APPS-007 | ReDoS + unbounded/untimed fetch stall the unattended build | Medium | Confirmed | `validate-compose.mjs:107`; `build-catalog.mjs:129-133` | Fixed |
-| APPS-008 | Both reference apps are broken — `index.html`/CSS/icon/screenshots lost | Medium | Confirmed | `examples/*/` | Fixed |
-| APPS-009 | RTL never enabled although `ar`/`ur` are offered settings | Medium | Confirmed | `examples/…/src/js/app.js:187-189` | Fixed |
-| APPS-010 | Hijri date does not roll over at maghrib | Medium | Confirmed | `examples/…/src/js/app.js:64-74` | Fixed |
+| APPS-008 | Both reference apps are broken — `index.html`/CSS/icon/screenshots lost | Medium | Confirmed | `examples/*/` | **Deferred (app scope)** |
+| APPS-009 | RTL never enabled although `ar`/`ur` are offered settings | Medium | Confirmed | `examples/…/src/js/app.js:187-189` | **Deferred (app scope)** |
+| APPS-010 | Hijri date does not roll over at maghrib | Medium | Confirmed | `examples/…/src/js/app.js:64-74` | **Deferred (app scope)** |
 | APPS-011 | `cgroup_parent` / `sysctls` unchecked — valid compose, passes clean | Low | Confirmed | `scripts/validate-compose.mjs:168-186` | Fixed |
 | APPS-012 | Scalar-shaped `cap_add`/`security_opt`/`group_add` skip structured checks | Low | Confirmed (not exploitable) | `validate-compose.mjs:176-184` | Fixed |
-| APPS-013 | No lat/lng range validation — `lat=999` silently yields times | Low | Confirmed | `examples/…/src/js/app.js:16-17,191` | Fixed |
+| APPS-013 | No lat/lng range validation — `lat=999` silently yields times | Low | Confirmed | `examples/…/src/js/app.js:16-17,191` | **Deferred (app scope)** |
 | APPS-014 | Manifest fields copied into the catalog with no type or length validation | Low | Confirmed | `scripts/build-catalog.mjs:257-301` | Fixed |
-| APPS-015 | `.gitignore` gaps; no `.dockerignore` in the copied templates | Low | Confirmed | `.gitignore:1-5` | Fixed |
-| APPS-016 | Sun position evaluated once at noon instead of per prayer | Low | Confirmed | `examples/…/src/js/prayer.js:89` | Fixed |
-| APPS-017 | Midnight-crossing Isha mis-selects "next prayer" after local midnight | Low | Confirmed | `examples/…/src/js/app.js:128-156` | Fixed |
-| APPS-018 | Prayer grid fully rebuilt via `innerHTML` every second on a 24/7 Pi | Low | Confirmed | `examples/…/src/js/app.js:77-99,198` | Fixed |
+| APPS-015 | `.gitignore` gaps; no `.dockerignore` in the copied templates | Low | Confirmed | `.gitignore:1-5` | Partly fixed |
+| APPS-016 | Sun position evaluated once at noon instead of per prayer | Low | Confirmed | `examples/…/src/js/prayer.js:89` | **Deferred (app scope)** |
+| APPS-017 | ~~Midnight-crossing Isha mis-selects "next prayer"~~ **WITHDRAWN** | — | Disproved | `examples/…/src/js/app.js:128-156` | Not a defect |
+| APPS-018 | Prayer grid fully rebuilt via `innerHTML` every second on a 24/7 Pi | Low | Confirmed | `examples/…/src/js/app.js:77-99,198` | **Deferred (app scope)** |
 | APPS-019 | `parking-attendant` image is not digest-pinned | Low | Confirmed | `registry.yaml:50-53` | **Deferred** |
 | APPS-020 | No tests, lint, or type checking anywhere; the safety gate is untested | Info | Confirmed | repo-wide | Fixed |
 | APPS-021 | Secrets: clean — 475 commits, 18 patterns, zero hits | Info | Confirmed | history | No action |
 | APPS-022 | `cla.yml`: `pull_request_target` + `actions: write` on any comment | Info | Confirmed | `.github/workflows/cla.yml:25-36` | Accepted |
-| APPS-023 | Image-build template re-pushes the same version tag, and `:latest` | Low | Confirmed | `examples/…/build-image.yml:18-20,58-60` | Fixed |
+| APPS-023 | Image-build template re-pushes the same version tag, and `:latest` | Low | Confirmed | `examples/…/build-image.yml:18-20,58-60` | **Deferred (app scope)** |
 
 ---
 

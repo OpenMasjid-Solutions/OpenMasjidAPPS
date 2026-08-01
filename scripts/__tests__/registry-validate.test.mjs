@@ -12,7 +12,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateSource, rawBase, validateAssetPath } from '../registry-validate.mjs';
+import { validateSource, rawBase, validateAssetPath, validateManifestFields, LIMITS } from '../registry-validate.mjs';
 
 const SHA = 'a32816bf5e3e3576b4a0bcfb400713b12383e98f';
 const ok = (src) => assert.deepEqual(validateSource(src), [], `expected ${JSON.stringify(src)} to be accepted`);
@@ -134,3 +134,82 @@ test('a leading slash on an asset path is tolerated (it is stripped) but not tra
   assert.deepEqual(validateAssetPath('icon', '/icon.svg'), []);
   assert.ok(validateAssetPath('icon', '/../icon.svg').length);
 });
+
+// --- APPS-014: manifest fields copied into the catalog --------------------
+const mOK = (label, m) =>
+  test(`APPS-014 accepted: ${label}`, () =>
+    assert.deepEqual(validateManifestFields(m), [], `expected ${label} to be accepted`));
+const mBad = (label, m, needle) =>
+  test(`APPS-014 rejected: ${label}`, () => {
+    const p = validateManifestFields(m);
+    assert.ok(p.length > 0, `expected ${label} to be rejected`);
+    if (needle) {
+      assert.ok(p.some((x) => x.includes(needle)), `expected ${JSON.stringify(needle)}, got ${JSON.stringify(p)}`);
+    }
+  });
+
+// A manifest shaped like the real reference app must pass untouched.
+mOK('a full, realistic manifest', {
+  id: 'prayer-times-display', name: 'Prayer Times Display', tagline: 'A calm clock',
+  category: 'displays', version: '1.0.0', author: 'OpenMasjidAPPS', license: 'AGPL-3.0-only',
+  icon: 'icon.svg', screenshots: ['screenshots/1.svg'], description: '# Heading\n\nMarkdown body.\n',
+  settings: [
+    { key: 'MASJID_NAME', label: 'Masjid name', type: 'text', default: 'Our Masjid' },
+    { key: 'CALC_METHOD', label: 'Method', type: 'select', options: ['MWL', 'ISNA'], default: 'MWL' },
+    { key: 'SHOW_TIME', label: 'Show clock', type: 'boolean', default: true },
+  ],
+  ports: [{ container: 80, label: 'Web interface' }],
+});
+mOK('a bare minimum manifest', { name: 'A', version: '1' });
+mOK('a multi-line markdown description', { name: 'A', version: '1', description: 'a\n\nb\n- c\n' });
+
+// name / version - required by the platform contract (CLAUDE.md 2.3).
+mBad('a numeric name', { name: 123, version: '1' }, 'must be a string');
+mBad('an object name', { name: { en: 'x' }, version: '1' }, 'must be a string');
+mBad('a list name', { name: ['x'], version: '1' }, 'must be a string, got a list');
+mBad('a blank name', { name: '   ', version: '1' }, 'must not be blank');
+mBad('a missing name', { version: '1' }, 'is required');
+mBad('a missing version', { name: 'A' }, 'is required');
+mBad('a newline in the name', { name: 'A\nB', version: '1' }, 'single line');
+
+test('APPS-014 a numeric name used to crash the build at sort time', () => {
+  // apps.sort() does a.name.localeCompare(b.name); a number has no localeCompare.
+  assert.throws(() => (123).localeCompare('x'), TypeError);
+  assert.ok(validateManifestFields({ name: 123, version: '1' }).length, 'must be caught before the sort');
+});
+
+// Length caps - set well above the largest live value (biggest description ~1.7 KB).
+mOK('a description at exactly the cap', { name: 'A', version: '1', description: 'x'.repeat(LIMITS.description) });
+mBad('a description one byte over the cap', { name: 'A', version: '1', description: 'x'.repeat(LIMITS.description + 1) }, 'over the');
+mBad('an over-long tagline', { name: 'A', version: '1', tagline: 'x'.repeat(LIMITS.tagline + 1) }, 'over the');
+
+// settings - the platform writes these to .env as KEY=VALUE (CLAUDE.md 7).
+mBad('settings as a map', { name: 'A', version: '1', settings: { K: 'v' } }, 'must be a list');
+mBad('a setting that is not an object', { name: 'A', version: '1', settings: ['K'] }, 'must be an object');
+mBad('a key that is not an env-var name', { name: 'A', version: '1', settings: [{ key: '9x', label: 'L' }] }, 'environment-variable name');
+mBad('a key with a dash', { name: 'A', version: '1', settings: [{ key: 'A-B', label: 'L' }] }, 'environment-variable name');
+mBad('a duplicate key', { name: 'A', version: '1', settings: [{ key: 'K', label: 'a' }, { key: 'K', label: 'b' }] }, 'duplicates');
+mBad('a missing label', { name: 'A', version: '1', settings: [{ key: 'K' }] }, 'label is required');
+mBad('an unknown type', { name: 'A', version: '1', settings: [{ key: 'K', label: 'L', type: 'colour' }] }, 'is unknown');
+mBad('select with no options', { name: 'A', version: '1', settings: [{ key: 'K', label: 'L', type: 'select' }] }, 'options');
+mBad('select with an empty options list', { name: 'A', version: '1', settings: [{ key: 'K', label: 'L', type: 'select', options: [] }] }, 'options');
+mBad('a newline in a default (.env line injection)', { name: 'A', version: '1', settings: [{ key: 'K', label: 'L', default: 'a\nEXTRA=1' }] }, 'single line');
+mBad('a carriage return in a default', { name: 'A', version: '1', settings: [{ key: 'K', label: 'L', default: 'a\rB' }] }, 'single line');
+mBad('an object default', { name: 'A', version: '1', settings: [{ key: 'K', label: 'L', default: { a: 1 } }] }, 'must be a scalar');
+mOK('a boolean default', { name: 'A', version: '1', settings: [{ key: 'K', label: 'L', type: 'boolean', default: false }] });
+mOK('a numeric default', { name: 'A', version: '1', settings: [{ key: 'K', label: 'L', type: 'number', default: 12 }] });
+
+// ports - CLAUDE.md 2.3 says [{ container: number, label?: string }].
+mBad('a string port', { name: 'A', version: '1', ports: [{ container: '80' }] }, 'integer from 1 to 65535');
+mBad('port 0', { name: 'A', version: '1', ports: [{ container: 0 }] }, 'integer from 1 to 65535');
+mBad('a negative port', { name: 'A', version: '1', ports: [{ container: -1 }] }, 'integer from 1 to 65535');
+mBad('a port above 65535', { name: 'A', version: '1', ports: [{ container: 70000 }] }, 'integer from 1 to 65535');
+mBad('a fractional port', { name: 'A', version: '1', ports: [{ container: 80.5 }] }, 'integer from 1 to 65535');
+mBad('ports as a map', { name: 'A', version: '1', ports: { container: 80 } }, 'must be a list');
+mOK('valid ports', { name: 'A', version: '1', ports: [{ container: 1 }, { container: 65535, label: 'x' }] });
+
+// icon / screenshots
+mBad('an icon that traverses out of the repo', { name: 'A', version: '1', icon: '../../../evil/x.svg' }, '..');
+mBad('an absolute icon URL', { name: 'A', version: '1', icon: 'https://evil.example/x.svg' }, 'not a URL');
+mBad('screenshots as a string', { name: 'A', version: '1', screenshots: 'screenshots/1.svg' }, 'must be a list');
+mBad('a screenshot that traverses', { name: 'A', version: '1', screenshots: ['ok.svg', '../../x.svg'] }, '..');

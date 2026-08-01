@@ -14,6 +14,11 @@
  *      defeating the single integrity control registry.yaml documents.
  *      (APPS-001)
  *
+ *   2. The remote manifest fields copied into catalog.json and read by the
+ *      platform. The platform contract (CLAUDE.md §2.3) fixes their types;
+ *      nothing checked them, so a bad manifest could break the build or emit an
+ *      entry the platform cannot read. (APPS-014)
+ *
  * Split out of build-catalog.mjs so it is unit-testable: importing that script
  * runs the whole build.
  */
@@ -29,6 +34,9 @@ export const REF_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
 // path: whitespace, percent-encoding, query/fragment/userinfo punctuation,
 // backslashes, and any control character.
 const URL_UNSAFE = /[\s%?#@\\:]|[\x00-\x1f\x7f-\x9f]/;
+// The platform writes settings to .env as KEY=VALUE lines, so a value containing
+// a newline injects further environment variables (CLAUDE.md §7).
+const CONTROL_CHARS = /[\x00-\x1f\x7f-\x9f]/;
 
 /**
  * Validate the three registry fields that become part of a fetch URL.
@@ -108,4 +116,119 @@ export function validateAssetPath(kind, value) {
     return [`${kind} must not contain a ".." segment (got ${JSON.stringify(value)})`];
   }
   return [];
+}
+
+// --- manifest field validation (APPS-014) ---------------------------------
+
+// Caps are set far above the largest value any listed app uses (the biggest live
+// description is ~1.7 KB) so nothing currently in the catalog is affected. They
+// exist to bound what one app repo can push into the file every masjid fetches.
+export const LIMITS = {
+  name: 120,
+  tagline: 200,
+  author: 120,
+  license: 60,
+  version: 40,
+  description: 16 * 1024,
+};
+
+const SETTING_TYPES = new Set(['text', 'select', 'number', 'password', 'boolean']);
+// The platform writes answers to .env as KEY=VALUE, so a key must be a valid
+// environment-variable name.
+const ENV_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/**
+ * Validate the manifest fields copied into a catalog entry.
+ * Returns an array of problems; empty means the manifest is usable as-is.
+ */
+export function validateManifestFields(m) {
+  const problems = [];
+  const str = (key, required) => {
+    const v = m[key];
+    if (v == null) {
+      if (required) problems.push(`manifest "${key}" is required`);
+      return;
+    }
+    if (typeof v !== 'string') {
+      problems.push(`manifest "${key}" must be a string, got ${Array.isArray(v) ? 'a list' : typeof v}`);
+      return;
+    }
+    if (required && !v.trim()) problems.push(`manifest "${key}" must not be blank`);
+    const cap = LIMITS[key];
+    if (cap && v.length > cap) problems.push(`manifest "${key}" is ${v.length} chars, over the ${cap}-char limit`);
+    // description is markdown and legitimately multi-line; everything else is
+    // rendered on one line in the App Store.
+    if (key !== 'description' && CONTROL_CHARS.test(v)) {
+      problems.push(`manifest "${key}" must be a single line without control characters`);
+    }
+  };
+
+  // `name` and `version` are required by the platform contract; `name` is also
+  // sorted on with localeCompare, so a non-string used to crash the build.
+  str('name', true);
+  str('version', true);
+  for (const k of ['tagline', 'author', 'license', 'description']) str(k, false);
+
+  if (m.settings != null) {
+    if (!Array.isArray(m.settings)) {
+      problems.push(`manifest "settings" must be a list (CLAUDE.md §7), got ${typeof m.settings}`);
+    } else {
+      const seen = new Set();
+      m.settings.forEach((f, i) => {
+        const at = `settings[${i}]`;
+        if (!f || typeof f !== 'object' || Array.isArray(f)) {
+          problems.push(`${at} must be an object with "key", "label" and "type"`);
+          return;
+        }
+        if (typeof f.key !== 'string' || !ENV_KEY_RE.test(f.key)) {
+          problems.push(`${at}.key must be a valid environment-variable name (got ${JSON.stringify(f.key)})`);
+        } else if (seen.has(f.key)) {
+          problems.push(`${at}.key duplicates an earlier setting ("${f.key}")`);
+        } else {
+          seen.add(f.key);
+        }
+        if (typeof f.label !== 'string' || !f.label.trim()) problems.push(`${at}.label is required`);
+        if (f.type != null && !SETTING_TYPES.has(f.type)) {
+          problems.push(`${at}.type "${f.type}" is unknown (use: ${[...SETTING_TYPES].join(', ')})`);
+        }
+        if (f.type === 'select' && (!Array.isArray(f.options) || !f.options.length)) {
+          problems.push(`${at} is type "select" so it needs a non-empty "options" list`);
+        }
+        if (f.default != null) {
+          if (typeof f.default === 'object') {
+            problems.push(`${at}.default must be a scalar, not ${Array.isArray(f.default) ? 'a list' : 'an object'}`);
+          } else if (CONTROL_CHARS.test(String(f.default))) {
+            problems.push(
+              `${at}.default must be a single line — the platform writes it to .env as KEY=VALUE (CLAUDE.md §7)`,
+            );
+          }
+        }
+      });
+    }
+  }
+
+  if (m.ports != null) {
+    if (!Array.isArray(m.ports)) {
+      problems.push(`manifest "ports" must be a list of { container, label? }`);
+    } else {
+      m.ports.forEach((p, i) => {
+        if (!p || typeof p !== 'object' || Array.isArray(p)) {
+          problems.push(`ports[${i}] must be an object with a numeric "container"`);
+          return;
+        }
+        if (!Number.isInteger(p.container) || p.container < 1 || p.container > 65535) {
+          problems.push(`ports[${i}].container must be an integer from 1 to 65535 (got ${JSON.stringify(p.container)})`);
+        }
+        if (p.label != null && typeof p.label !== 'string') problems.push(`ports[${i}].label must be a string`);
+      });
+    }
+  }
+
+  if (m.icon != null) problems.push(...validateAssetPath('manifest "icon"', m.icon));
+  if (m.screenshots != null) {
+    if (!Array.isArray(m.screenshots)) problems.push(`manifest "screenshots" must be a list of paths`);
+    else m.screenshots.forEach((s, i) => problems.push(...validateAssetPath(`screenshots[${i}]`, s)));
+  }
+
+  return problems;
 }

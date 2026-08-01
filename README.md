@@ -76,9 +76,17 @@ backwards-compatible, and never carries masjid data. See
 
 ## `examples/`
 
-Complete, working **reference apps** (`prayer-times-display`, `announcements-board`) you copy into a
-new repo to start. They are templates/documentation — they are **not** part of the catalog (the
-registry is).
+**Illustrative scaffolding** (`prayer-times-display`, `announcements-board`) showing the *shape* an
+app repo needs: `manifest.yaml`, `docker-compose.yml`, a Dockerfile, and an entrypoint that turns
+install settings into runtime config.
+
+They are documentation, not software this repo maintains — **not** in the catalog, **not** built,
+tested or released, and **not** run by any masjid. Copy one as a starting point; from then on the
+code is yours, lives in your repo, and it is your job to make it meet the quality bar in
+[`CLAUDE.md` §11](CLAUDE.md). App behaviour and correctness (prayer times, Hijri dates, Zakat maths,
+RTL) belong to each app's own repository — the prayer clocks masjids actually run come from the
+`display` app, [OpenMasjidDisplay](https://github.com/OpenMasjid-Solutions/OpenMasjidDisplay), not
+from anything here.
 
 ## Maintainers — catalog auto-publish (`CATALOG_PUSH_TOKEN`)
 

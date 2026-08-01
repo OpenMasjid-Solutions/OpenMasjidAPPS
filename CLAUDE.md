@@ -32,8 +32,13 @@ populate its App Store.
 - `registry.yaml` — the hand-edited list of app repositories to include.
 - `scripts/build-catalog.mjs` — fetches each listed repo and generates `catalog.json`.
 - `catalog.json` — **generated**; the only file the platform reads.
-- `examples/` — complete, working **reference apps** you copy into a new repo to start. They are
-  **not** part of the catalog (the registry is); they are templates/documentation only.
+- `examples/` — **illustrative scaffolding only.** Skeletons showing the *shape* an app repo must
+  have (`manifest.yaml`, `docker-compose.yml`, a Dockerfile, an entrypoint that turns settings into
+  runtime config). They are **documentation, not software this repo maintains**: they are **not** in
+  the catalog, **not** built, **not** tested, **not** released, and **not** run by any masjid. Copy
+  one into a new repo as a starting point; from that moment it is *your* app's code and it lives and
+  is maintained in *your* repo. Do not treat them as a working product, and do not "fix" them as
+  part of catalog work — see §15.
 - `docs/BUILDING_AN_APP.md` — the hands-on guide for building a compatible app repo.
 - `docs/DESIGN.md` — the full UI/UX design language (Sakīna Glass tokens, motion, dock, components)
   every app should match so it looks native to OpenMasjidOS.
@@ -42,6 +47,13 @@ populate its App Store.
 Live app source, Dockerfiles for shipped apps, or per-app image CI. **Those live in each app's own
 repo.** Do not add an `apps/` folder of real apps here, and do not reintroduce a per-app image
 build workflow into this repo.
+
+It also does not own **app behaviour or app correctness**. Prayer-time calculation, Hijri dates,
+Qibla, Zakat and donation maths, UI, accessibility and RTL are each app's responsibility, in each
+app's own repository. For example, the prayer clocks masjids actually run come from the **`display`**
+app (`OpenMasjid-Solutions/OpenMasjidDisplay`), which calculates them itself — nothing under
+`examples/` is that engine, and changing `examples/` cannot fix or break it. If you find a
+correctness bug in an app, it is a bug **in that app's repo**; open it there.
 
 ---
 
@@ -127,7 +139,9 @@ apps:
 ## 4. Requirements for an app repository (READ THIS if you are building an app)
 
 > **For other agents/authors:** an app you build must meet *all* of the following to be listed and
-> to install cleanly. The fastest path is to copy `examples/<an-app>/` into a new repo and adapt it.
+> to install cleanly. A quick way to start is to copy the layout of `examples/<an-app>/` into a new
+> repo — but treat it as a skeleton to build on, not finished software (§1): once copied, the code is
+> yours and it is maintained in your repo, and it is your job to make it meet §11.
 > A step-by-step version with copy-paste templates is in **`docs/BUILDING_AN_APP.md`**.
 
 **A. The repository**
@@ -355,6 +369,11 @@ namespace/cap/device/mount checks. When the platform adds a compose check, add t
 ---
 
 ## 11. Quality bar for apps
+
+> **Applies to an app's own repository, not to this tree.** Everything in this section is normative
+> for the repo where the app lives — including anything under `examples/`, once you have copied it
+> into your own repo. Nothing here is a to-do list for work in OpenMasjidAPPS (§15).
+
 - **Match the OpenMasjidOS design language** — see **[`docs/DESIGN.md`](docs/DESIGN.md)**: the Sakīna
   Glass material, color tokens (dark default + light), spring motion, the dock, components, RTL, and
   voice. Prefer inheriting the live appearance via the Fabric (§7b) so the app tracks the dashboard;
@@ -380,8 +399,8 @@ OpenMasjidAPPS/
 ├── scripts/build-catalog.mjs      # registry → catalog.json (fetches app repos)
 ├── docs/BUILDING_AN_APP.md        # hands-on guide for building a compatible app repo
 ├── docs/DESIGN.md                 # the full UI/UX design language every app should match
-├── examples/                      # complete reference apps to copy into a new repo (NOT catalogued)
-│   ├── prayer-times-display/
+├── examples/                      # illustrative scaffolding — NOT catalogued, built, tested or
+│   ├── prayer-times-display/      #   maintained. Out of scope for work here; see §1 and §15.
 │   └── announcements-board/
 └── .github/workflows/build-catalog.yml
 ```
@@ -398,12 +417,26 @@ npm install && npm run build   # regenerate catalog.json from registry.yaml (nee
   `catalog.json` whose **shape matches §2** (the platform is unaffected); and CI is green.
 - **An app** (in its own repo) is done when it meets every requirement in §4 and **installs and
   opens cleanly on a real OpenMasjidOS instance** with only the settings collected at install time.
+  This bar is assessed in the app's repo. It is **not** a bar `examples/` has to meet, and a catalog
+  change is never blocked on it.
 
 ## 15. Working agreement for Claude (in this repo)
 - Read this file first, every session. **§2 (platform contract) is a hard constraint** — never
   change the shape of `catalog.json` here; that would break the platform.
 - This repo is **catalog-only**. Don't add real app source here. New apps go in their own repos and
   are added to `registry.yaml`.
+- **Do not modify app source in this repo — that includes `examples/`.** Work here is limited to
+  `registry.yaml`, `scripts/`, `.github/workflows/`, `docs/`, and the repo's own config. `examples/`
+  is illustrative scaffolding (§1), so it is **out of scope for reviews, audits, refactors, test
+  coverage and bug fixes**. If something under `examples/` is wrong or incomplete, say so and stop;
+  don't fix it as a side quest. Change it only when the user explicitly asks for a change to the
+  example scaffolding itself.
+- **App correctness is never this repo's bug.** Prayer times, Hijri dates, Qibla, Zakat and donation
+  maths, UI/RTL/accessibility, and per-app security all belong to the app's own repository — for
+  prayer times that is `OpenMasjidDisplay`, not `examples/`. Report such a finding as a cross-repo
+  item for that repo; do not "fix" it here, because fixing it here fixes nothing for any masjid.
+  Never assert a bug in an app repo you have not actually read: the build fetches only each app's
+  `manifest.yaml` and `docker-compose.yml`, so its application code is not visible from here.
 - Never hand-edit `catalog.json`; change `registry.yaml` (or an app repo) and run the build.
 - Keep `id` == app's manifest id == registry id, kebab-case, matching `^[a-z0-9][a-z0-9-]{0,79}$`.
 - Never copy Umbrel/CasaOS definitions or assets (§10). Author fresh.

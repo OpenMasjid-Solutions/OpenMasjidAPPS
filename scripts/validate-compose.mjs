@@ -104,7 +104,13 @@ export function validateCompose(text) {
   const warnings = new Set();
 
   // --- Raw-text scans (work even if YAML parsing fails) --------------------
-  if (/(^|\n)\s*<<\s*:/.test(text)) {
+  // The previous pattern was /(^|\n)\s*<<\s*:/. Because \s also matches \n, the
+  // (^|\n) alternation and \s* overlapped: a match could start at every newline
+  // and \s* then ran to end-of-input before failing, giving quadratic behaviour on
+  // attacker-controlled compose text (measured: 102ms at 20 KB, 6.4s at 160 KB,
+  // ~4 min at 1 MB). The anchored form below is linear and matches the same
+  // directive — a merge key can only be preceded by spaces/tabs on its line. (APPS-007)
+  if (/^[ \t]*<<[ \t]*:/m.test(text)) {
     errors.add('uses a YAML merge key ("<<:") — merges config the safety check cannot see');
   }
   if (/\/var\/run\/docker\.sock/.test(text)) {
@@ -173,14 +179,34 @@ export function validateCompose(text) {
       if (str(svc[k]) === 'host') errors.add(`${where}: ${k}: host`);
     }
 
-    if (Array.isArray(svc.cap_add) && svc.cap_add.length) errors.add(`${where}: cap_add ${JSON.stringify(svc.cap_add)}`);
+    // These three were gated on Array.isArray(), so a scalar value skipped the
+    // check entirely while `devices` and `volumes_from` handled both shapes. Docker
+    // Compose does reject a scalar here ("must be a array"), so it was never an
+    // exploitable bypass — but CLAUDE.md §10 requires lockstep with the platform's
+    // separate validator, and a safety check must not depend on YAML shape. (APPS-012)
+    const toList = (v) => (v == null ? [] : Array.isArray(v) ? v : [v]);
+
+    const capAdd = toList(svc.cap_add);
+    if (capAdd.length) errors.add(`${where}: cap_add ${JSON.stringify(capAdd)}`);
     if (svc.devices && (!Array.isArray(svc.devices) || svc.devices.length)) errors.add(`${where}: devices (host device passthrough)`);
     if (svc.device_cgroup_rules) errors.add(`${where}: device_cgroup_rules`);
-    if (Array.isArray(svc.security_opt) && svc.security_opt.some((s) => str(s).includes('unconfined'))) {
+    if (toList(svc.security_opt).some((s) => str(s).includes('unconfined'))) {
       errors.add(`${where}: security_opt unconfined`);
     }
-    if (Array.isArray(svc.group_add) && svc.group_add.some((g) => ['root', 'docker', '0', 0].includes(g))) {
+    if (toList(svc.group_add).some((g) => ['root', 'docker', '0', 0].includes(g))) {
       errors.add(`${where}: group_add of a privileged group (root/docker)`);
+    }
+
+    // cgroup_parent places the container outside the cgroup slice the platform
+    // assigns it, escaping the memory/CPU limits that keep a Raspberry Pi alive.
+    // The validator already rejects `cgroup: host`; this is the same class. (APPS-011)
+    if (svc.cgroup_parent != null && String(svc.cgroup_parent).trim() !== '') {
+      errors.add(`${where}: cgroup_parent "${svc.cgroup_parent}" escapes the platform's cgroup limits`);
+    }
+    // Docker only permits namespaced sysctls without --privileged, so the reach is
+    // the container's own namespace: worth surfacing, not worth failing an app over.
+    if (svc.sysctls && (typeof svc.sysctls === 'object' || String(svc.sysctls).trim())) {
+      warnings.add(`${where}: sets sysctls — kernel tunables should not be needed by a masjid app`);
     }
     if (svc.build !== undefined) errors.add(`${where}: "build" — apps must reference a pre-built, published image, not build on the host`);
     if (svc.extends !== undefined) errors.add(`${where}: "extends" merges config the safety check cannot see`);
@@ -221,6 +247,98 @@ export function validateCompose(text) {
       errors.add(
         `volume "${name}": attaches to a pre-existing Docker volume ("${target}") — a listed app must own its storage`,
       );
+    }
+  }
+
+  // Top-level networks. This mirrors the external-volume rule above, for the same
+  // reason: `external: true` uses the network name verbatim and `name:` overrides
+  // the project-scoped name, so either attaches the app to a network it does not
+  // own — including the platform's own internal network, where the core API and
+  // other apps' containers live. classifyVolumeSource() never sees a network, so
+  // nothing caught this before. A listed app must own its network exactly as it
+  // must own its storage. Mirrors OpenMasjidOS apps/compose-validate.ts. (APPS-002)
+  const topNets = doc.networks && typeof doc.networks === 'object' ? doc.networks : {};
+  const declaredNets = new Set(Object.keys(topNets));
+  for (const [name, def] of Object.entries(topNets)) {
+    if (!def || typeof def !== 'object') continue; // `mynet:` with an empty body — project-scoped, fine
+
+    const driver = String(def.driver ?? '').toLowerCase();
+    if (driver === 'host' || driver === 'none') {
+      errors.add(`network "${name}": driver "${driver}" bypasses network isolation`);
+    }
+
+    const isExternal = isTruthyFlag(def.external) || (!!def.external && typeof def.external === 'object');
+    const explicit =
+      typeof def.name === 'string'
+        ? def.name
+        : def.external && typeof def.external === 'object' && typeof def.external.name === 'string'
+          ? def.external.name
+          : null;
+    if (!isExternal && explicit == null) continue;
+    const target = String(explicit ?? name).trim();
+    if (/^omos[-_]/i.test(target)) {
+      errors.add(
+        `network "${name}": attaches to an OpenMasjid platform network ("${target}") — that reaches the core and other apps' containers`,
+      );
+    } else {
+      errors.add(
+        `network "${name}": attaches to a pre-existing Docker network ("${target}") — a listed app must own its network`,
+      );
+    }
+  }
+
+  // A service must not join a network the file never declares: compose resolves it
+  // against pre-existing networks instead of creating a project-scoped one.
+  for (const [name, svc] of Object.entries(services)) {
+    if (!svc || typeof svc !== 'object') continue;
+    const nets = Array.isArray(svc.networks)
+      ? svc.networks
+      : svc.networks && typeof svc.networks === 'object'
+        ? Object.keys(svc.networks)
+        : [];
+    for (const n of nets) {
+      const key = typeof n === 'string' ? n : null;
+      if (key && key !== 'default' && !declaredNets.has(key)) {
+        errors.add(`service "${name}": joins network "${key}" without declaring it under top-level "networks:"`);
+      }
+    }
+  }
+
+  // Discovery labels are platform-internal: CLAUDE.md §4C forbids them and
+  // docs/BUILDING_AN_APP.md states they are "Rejected at build AND at install" —
+  // but nothing here ever looked at labels, so the documented guarantee was not
+  // real. An app that declares another app's compose project label can confuse
+  // platform inventory, lifecycle and uninstall. (APPS-004)
+  const RESERVED_LABEL = /^(com\.docker\.compose\.|com\.openmasjid\.)/i;
+  const checkLabels = (labels, where) => {
+    if (!labels) return;
+    // Compose accepts both the map form and the list form ("k=v").
+    const keys = Array.isArray(labels)
+      ? labels.map((l) => String(l).split('=')[0].trim())
+      : typeof labels === 'object'
+        ? Object.keys(labels)
+        : [];
+    for (const k of keys) {
+      if (RESERVED_LABEL.test(k)) {
+        errors.add(`${where}: sets the platform-internal label "${k}" — these are reserved for OpenMasjidOS`);
+      }
+    }
+  };
+  for (const [name, s] of Object.entries(services)) {
+    if (!s || typeof s !== 'object') continue;
+    checkLabels(s.labels, `service "${name}"`);
+    // build: is rejected elsewhere, but its labels would apply to the image too.
+    if (s.build && typeof s.build === 'object') checkLabels(s.build.labels, `service "${name}" build`);
+  }
+  for (const [key, section] of [
+    ['network', doc.networks],
+    ['volume', doc.volumes],
+    ['secret', doc.secrets],
+    ['config', doc.configs],
+  ]) {
+    if (!section || typeof section !== 'object') continue;
+    for (const [name, def] of Object.entries(section)) {
+      if (def && typeof def === 'object') checkLabels(def.labels, `${key} "${name}"`);
     }
   }
 

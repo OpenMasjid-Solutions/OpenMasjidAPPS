@@ -1,0 +1,280 @@
+{
+  "$schema_note": "One object per finding. Identical schema across all six OpenMasjid repo audits so results can be merged.",
+  "repo": "OpenMasjidAPPS",
+  "audit_date": "2026-07-31",
+  "baseline_sha": "4f4a7f0486b4228c630156bf5b51e162f24c34eb",
+  "rollback_tag": "pre-audit-2026-07-31",
+  "branch": "audit/security-2026-07-31",
+  "pushed_to_main": false,
+  "push_blocked_reason": "Pre-flight rule 2: catalog.json on main IS the production artifact the platform fetches (no build or deploy gate), and pushing scripts/** additionally triggers a workflow that regenerates and re-publishes it unattended using a branch-protection-bypassing PAT.",
+  "scope": {
+    "included": ["registry.yaml", "catalog.json", "scripts/", ".github/", ".gitignore", "package.json", "docs/", "git history (475 commits)"],
+    "excluded": ["examples/ (illustrative scaffolding, not maintained software - CLAUDE.md \u00a71)", "the five external app repositories", "the OpenMasjidOS platform"],
+    "excluded_domains": ["prayer-time correctness", "Hijri date correctness", "app UI/RTL/accessibility"]
+  },
+  "totals": { "critical": 0, "high": 2, "medium": 6, "low": 8, "info": 3, "total": 19, "fixed": 10, "partially_fixed": 1, "deferred": 7, "no_action": 2, "withdrawn": 4 },
+  "findings": [
+    {
+      "id": "APPS-001",
+      "title": "Registry path traversal defeats the commit-SHA pin, redirecting an entry to another repository",
+      "severity": "high",
+      "confidence": "confirmed",
+      "category": "supply-chain",
+      "file": "scripts/build-catalog.mjs",
+      "line": 153,
+      "summary": "repo/ref/path were interpolated into a raw.githubusercontent.com URL with no validation; only leading and trailing slashes were stripped, so a '..' segment in path survived and URL normalisation moved the fetch to a different repository while registry.yaml, the review diff and the build log all still named the pinned repo and SHA. Verified: path '../../../../attacker/evil/main' resolves to raw.githubusercontent.com/attacker/evil/main/manifest.yaml. Fixed by validating all three fields before any URL is built, plus a host and path-prefix assertion inside rawBase.",
+      "status": "fixed",
+      "commit": "dca63c3465752ca1d133200a298ac1513ed9bfb3"
+    },
+    {
+      "id": "APPS-002",
+      "title": "Compose validator has no external or renamed network check, though it has one for volumes",
+      "severity": "high",
+      "confidence": "confirmed",
+      "category": "container-isolation",
+      "file": "scripts/validate-compose.mjs",
+      "line": 195,
+      "summary": "checkExternalVolumes stops an app attaching to another app's data volume, but networks were never inspected. 'networks: {omos_internal: {external: true}}' is valid Docker Compose (confirmed against Docker Compose v5.3.1) and passed the validator with zero errors and zero warnings, letting a listed app join a pre-existing Docker network including the platform's own. Fixed by mirroring the volume rule: reject external or explicitly renamed networks, driver host/none, and services joining an undeclared network. What is reachable on an omos_* network is unverified from this repo and is recorded as a cross-repo question.",
+      "status": "fixed",
+      "commit": "defc4370bfaa30b1d0e492d776fdad383eb8278d"
+    },
+    {
+      "id": "APPS-004",
+      "title": "Discovery-label ban documented as enforced at build and install, never checked",
+      "severity": "medium",
+      "confidence": "confirmed",
+      "category": "access-control",
+      "file": "scripts/validate-compose.mjs",
+      "line": 142,
+      "summary": "CLAUDE.md \u00a74C forbids platform-internal labels and docs/BUILDING_AN_APP.md:573 states they are 'Rejected at build AND at install', but the validator never read labels. A compose setting com.docker.compose.project=omos-donations passed clean; since CLAUDE.md \u00a72.5 says platform discovery is by that label, an app claiming another app's project label can confuse platform inventory, lifecycle and uninstall. Fixed by rejecting com.docker.compose.* and com.openmasjid.* on services, service build, networks, volumes, secrets and configs, in both map and k=v list form, case-insensitively. The precise platform-side consequence is unverified.",
+      "status": "fixed",
+      "commit": "592f8b3ff270352c835754bd2fa65af42757fc4f"
+    },
+    {
+      "id": "APPS-005",
+      "title": "npm install instead of npm ci in the workflow that auto-publishes production",
+      "severity": "medium",
+      "confidence": "confirmed",
+      "category": "supply-chain",
+      "file": ".github/workflows/build-catalog.yml",
+      "line": 48,
+      "summary": "package.json declares yaml ^2.5.0; npm install may resolve a newer version inside that range and rewrite the lockfile, demonstrated locally on a clean tree. The job runs unattended on a cron with contents: write and a branch-protection-bypassing PAT, and auto-commits catalog.json, so an unreviewed dependency release could execute there and then publish. Fixed with npm ci plus setup-node npm caching.",
+      "status": "fixed",
+      "commit": "192e35c63d4219a82e3cfe05d20c3956cb7ca79f"
+    },
+    {
+      "id": "APPS-006",
+      "title": "All GitHub Actions pinned to mutable major tags rather than commit SHAs",
+      "severity": "medium",
+      "confidence": "confirmed",
+      "category": "supply-chain",
+      "file": ".github/workflows/build-catalog.yml",
+      "line": 40,
+      "summary": "Seven actions were on mutable tags: two in the catalog workflow that holds the publishing PAT, and five in the copied image-build template whose job holds packages: write and pushes the image masjids pull, including docker/build-push-action and docker/login-action. cla.yml already pinned by SHA, so this applied an existing in-repo convention. Fixed by pinning to the tip of the same major each file used, with the version in a trailing comment, plus a Dependabot config so the pins do not become stale versions.",
+      "status": "fixed",
+      "commit": "192e35c63d4219a82e3cfe05d20c3956cb7ca79f"
+    },
+    {
+      "id": "APPS-007",
+      "title": "Quadratic regex and unbounded, untimed fetch can stall the unattended publishing build",
+      "severity": "medium",
+      "confidence": "confirmed",
+      "category": "availability",
+      "file": "scripts/validate-compose.mjs",
+      "line": 107,
+      "summary": "The merge-key scan was /(^|\\n)\\s*<<\\s*:/; because \\s also matches \\n the alternation and quantifier overlapped, giving quadratic behaviour on attacker-controlled compose text - measured 98.8 ms at 20 KB, 6431.7 ms at 160 KB, 25712.5 ms at 320 KB. fetchText additionally had no timeout and no size limit. Fixed with the linear anchored /^[ \\t]*<<[ \\t]*:/m (0.235 ms at 320 KB, proved equivalent on four spellings), a 20 s timeout, a 2 MiB streaming byte cap, and a 64 KiB cap on the compose embedded into catalog.json.",
+      "status": "fixed",
+      "commit": "c0da6242b5aefa5e138cba97827c9b7ae3c26728"
+    },
+    {
+      "id": "APPS-008",
+      "title": "Both reference apps are incomplete - index.html, stylesheet, icon and screenshot were dropped",
+      "severity": "medium",
+      "confidence": "confirmed",
+      "category": "code-health",
+      "file": "examples/prayer-times-display/src/index.html",
+      "line": 1,
+      "summary": "Commit cabcbae moved apps/ to examples/ and dropped four files per app: src/index.html, src/css/style.css, icon.svg and screenshots/1.svg. The Dockerfile COPY src/ therefore builds an image serving no index.html, both manifests reference an icon and screenshot that do not exist (CLAUDE.md \u00a74A requires them), and both READMEs claim the app is complete and tell the reader to open a file that is absent. Recoverable with git show cabcbae^:apps/<app>/<file>. Deferred: examples/ is out of scope for this audit.",
+      "status": "deferred",
+      "commit": null
+    },
+    {
+      "id": "APPS-009",
+      "title": "RTL never enabled although Arabic and Urdu are offered language settings",
+      "severity": "medium",
+      "confidence": "confirmed",
+      "category": "internationalisation",
+      "file": "examples/prayer-times-display/src/js/app.js",
+      "line": 187,
+      "summary": "Both manifests offer LANGUAGE: [en, ar, ur]; Arabic and Urdu are right-to-left, but only document.documentElement.lang is set and dir never is, so choosing Arabic yields Arabic text in a left-to-right layout. This contradicts docs/DESIGN.md:50 ('RTL first-class') and the DESIGN.md:432 release checklist, and DESIGN.md:36 specifies the exact one-line fix. Deferred: examples/ is out of scope for this audit.",
+      "status": "deferred",
+      "commit": null
+    },
+    {
+      "id": "APPS-011",
+      "title": "cgroup_parent and sysctls unchecked, though cgroup: host is rejected",
+      "severity": "low",
+      "confidence": "confirmed",
+      "category": "container-isolation",
+      "file": "scripts/validate-compose.mjs",
+      "line": 168,
+      "summary": "Both are valid Docker Compose and passed the validator clean. cgroup_parent places the container outside the cgroup slice the platform assigns, escaping the memory and CPU limits that matter on Raspberry Pi class hardware - the same class as the already-rejected cgroup: host. sysctls is bounded because Docker only permits namespaced sysctls without --privileged. Fixed: cgroup_parent is an error, sysctls is a warning rather than a build failure.",
+      "status": "fixed",
+      "commit": "592f8b3ff270352c835754bd2fa65af42757fc4f"
+    },
+    {
+      "id": "APPS-012",
+      "title": "Scalar-shaped cap_add, security_opt and group_add skipped their checks entirely",
+      "severity": "low",
+      "confidence": "confirmed",
+      "category": "container-isolation",
+      "file": "scripts/validate-compose.mjs",
+      "line": 176,
+      "summary": "Three checks were gated on Array.isArray(), so a scalar value skipped them, while the neighbouring devices and volumes_from checks handled both shapes; the raw-regex net that would catch them runs only when YAML parsing fails. NOT exploitable - Docker Compose v5.3.1 rejects all three scalar forms with 'must be a array', so such a compose fails at install and no privilege is gained. Fixed anyway because CLAUDE.md \u00a710 makes lockstep with the platform's independent validator an invariant and a safety check must not depend on YAML shape. Initially mis-assessed as a bypass; Docker adjudicated it.",
+      "status": "fixed",
+      "commit": "592f8b3ff270352c835754bd2fa65af42757fc4f"
+    },
+    {
+      "id": "APPS-013",
+      "title": "No latitude or longitude range validation, so a transposed coordinate yields silent nonsense",
+      "severity": "low",
+      "confidence": "confirmed",
+      "category": "input-validation",
+      "file": "examples/prayer-times-display/src/js/app.js",
+      "line": 16,
+      "summary": "The existing Number.isFinite guard correctly catches blank and non-numeric input, but there is no range check and parseFloat accepts trailing garbage ('12abc' becomes 12). Latitude 999 produced confident output with sunrise, dhuhr, asr and maghrib all identical rather than an error. Deferred: examples/ is out of scope for this audit.",
+      "status": "deferred",
+      "commit": null
+    },
+    {
+      "id": "APPS-014",
+      "title": "Untrusted manifest fields copied into catalog.json with no type, length or shape validation",
+      "severity": "low",
+      "confidence": "confirmed",
+      "category": "input-validation",
+      "file": "scripts/build-catalog.mjs",
+      "line": 257,
+      "summary": "name, tagline, description, settings, ports, icon and screenshots were copied from an untrusted remote manifest unchecked. name was tested only for truthiness then sorted with localeCompare, so a numeric or object name threw and broke the build; wrong types silently violated the platform contract in CLAUDE.md \u00a72.3; settings[].key was not validated as an env-var name and settings[].default was not checked for newlines although the platform writes them to .env as KEY=VALUE. Fixed with type, length, env-key, setting-type, port-range and asset-path validation. Caps are far above the largest live value, and all five live manifests still validate. Whether the platform's markdown renderer sanitises description, and whether its .env writer quotes values, are unverified cross-repo questions.",
+      "status": "fixed",
+      "commit": "5389c1a01c72301524fab27f33b395118c6d3abe"
+    },
+    {
+      "id": "APPS-015",
+      "title": "Ignore-file gaps: .env variants, key and certificate material, .npmrc, and no .dockerignore",
+      "severity": "low",
+      "confidence": "confirmed",
+      "category": "secrets-hygiene",
+      "file": ".gitignore",
+      "line": 1,
+      "summary": "Prevention, not a live leak - history is clean of secrets. .gitignore covered .env but not .env.local/.env.production, and no key or certificate material (*.pem, *.key, *.p12, *.crt, id_rsa) nor .npmrc where an npm auth token lands. Fixed, with !.env.example retained. The matching .dockerignore for the two example apps was not added: examples/ is out of scope, so this finding is only partly fixed.",
+      "status": "partially_fixed",
+      "commit": "f030efb60e9fa8ae11a26a28957bc986cc6e25f0"
+    },
+    {
+      "id": "APPS-018",
+      "title": "Prayer grid torn down and rebuilt via innerHTML every second on 24/7 low-power hardware",
+      "severity": "low",
+      "confidence": "confirmed",
+      "category": "performance",
+      "file": "examples/prayer-times-display/src/js/app.js",
+      "line": 77,
+      "summary": "renderCards() clears the grid with innerHTML then recreates six cards, driven by setInterval(tick, 1000) - roughly 86,400 full parse, layout and paint cycles a day, indefinitely, on the Raspberry Pi class hardware CLAUDE.md \u00a711 targets, when only the countdown text actually changes. Deferred: examples/ is out of scope for this audit.",
+      "status": "deferred",
+      "commit": null
+    },
+    {
+      "id": "APPS-019",
+      "title": "The one third-party app image is not digest-pinned",
+      "severity": "low",
+      "confidence": "confirmed",
+      "category": "supply-chain",
+      "file": "registry.yaml",
+      "line": 50,
+      "summary": "ghcr.io/sybutter/openmasjidparkingattendant:0.2.1 is tag-pinned only, which the build already warns about on every run. Its registry commit: pin is correct so the compose is immutable, but the image tag that compose names is not, so the owner or anyone compromising that GHCR account can repoint :0.2.1 at different content and every masjid pulls it on next install or recreate. Cannot be fixed from this repo: the digest must go in that repo's docker-compose.yml, and editing registry.yaml would trigger the production republish this audit is forbidden to fire.",
+      "status": "deferred",
+      "commit": null
+    },
+    {
+      "id": "APPS-020",
+      "title": "No tests, linter or type checking anywhere; the documented safety gate was untested",
+      "severity": "info",
+      "confidence": "confirmed",
+      "category": "test-coverage",
+      "file": "package.json",
+      "line": 8,
+      "summary": "package.json had one script (build); there was no test runner, linter or type checker, and no CI job running any. scripts/validate-compose.mjs is described in CLAUDE.md \u00a710 as the catalog's safety gate with a DO-NOT-REGRESS invariant and had zero tests, so that invariant was maintained by hand. This also made the audit's own ship gate unmeetable as written - there was no suite to keep green. Fixed with 139 node:test cases (zero new dependencies) over validateCompose and registry-validate, plus scripts/lint.mjs which parses every script, enforces the SPDX header and asserts catalog.json still matches the platform contract, both wired into CI ahead of the publish step.",
+      "status": "fixed",
+      "commit": "6b24d5f3666ed2a881093c7c1488b911190f86ce"
+    },
+    {
+      "id": "APPS-021",
+      "title": "Secrets: clean across all 475 commits",
+      "severity": "info",
+      "confidence": "confirmed",
+      "category": "secrets",
+      "file": "docs/audit/SECURITY_AUDIT.md",
+      "line": 1,
+      "summary": "All 475 commits on all branches content-scanned with git log --all -p -G for 18 credential patterns: AWS keys, GitHub PAT/OAuth/fine-grained tokens, Stripe live/test/restricted keys and webhook secrets, Slack tokens, PEM private keys and certificates, Google API keys, JWTs, SendGrid keys, npm tokens, and Postgres/MySQL/MongoDB URLs with embedded passwords. Zero hits. No .env, certificate, backup or database dump has ever been committed. Nothing to rotate and no history rewrite needed.",
+      "status": "no_action_needed",
+      "commit": null
+    },
+    {
+      "id": "APPS-022",
+      "title": "CLA workflow uses pull_request_target with actions: write, triggered by any comment",
+      "severity": "info",
+      "confidence": "confirmed",
+      "category": "ci-security",
+      "file": ".github/workflows/cla.yml",
+      "line": 25,
+      "summary": "Runs on pull_request_target and on issue_comment - any comment by anyone - with actions, contents, pull-requests and statuses write. Assessed and accepted: the dangerous pattern is pull_request_target that checks out and executes PR code, and this workflow has no checkout step and runs exactly one action pinned to a full SHA, with an if: gate restricting comment handling to two literal strings. actions: write is required by the official setup to re-run the check after signing. Residual risk recorded: the permissions are broad enough that a compromise of that action would be serious, which the Dependabot config added in this audit now helps keep patched.",
+      "status": "accepted_risk",
+      "commit": null
+    },
+    {
+      "id": "APPS-023",
+      "title": "Image-build template re-pushes the same version tag on every push to main, and pushes :latest",
+      "severity": "low",
+      "confidence": "confirmed",
+      "category": "supply-chain",
+      "file": "examples/prayer-times-display/.github/workflows/build-image.yml",
+      "line": 18,
+      "summary": "The template triggers on push to main and pushes ghcr.io/<owner>/<repo>:<version-from-manifest> plus :latest. Because the version is read from manifest.yaml, every commit to main overwrites the existing version tag with different content - manufacturing exactly the moved-tag condition CLAUDE.md \u00a710, the registry.yaml header and the build's own warnings all caution against. Only digest-pinned catalog entries are protected. Deferred: examples/ is out of scope for this audit.",
+      "status": "deferred",
+      "commit": null
+    }
+  ],
+  "withdrawn": [
+    {
+      "id": "APPS-003",
+      "title": "High-latitude clamp fabricates wrong Fajr and Isha in the reference template",
+      "original_severity": "high",
+      "withdrawn_reason": "Out of scope, and initially mis-scoped. The defect is real and was verified numerically (London 21 June returns Fajr 01:02 and Isha 01:02 - the same instant, which is impossible; Berlin and Stockholm likewise), but it is in examples/prayer-times-display/src/js/prayer.js, an illustrative template that is commented out in registry.yaml, in no catalog and run by no masjid. Prayer-time calculation for real installs belongs to the shipped display app (OpenMasjidDisplay), which computes its own times in its own repository. That repo's source was never read by this audit - only its manifest and compose are visible - so no claim is made about it. Recorded in ACTION_REQUIRED.md as an optional check for its own maintainers, not as a finding.",
+      "file": "examples/prayer-times-display/src/js/prayer.js",
+      "line": 95
+    },
+    {
+      "id": "APPS-010",
+      "title": "Hijri date does not roll over at maghrib",
+      "original_severity": "medium",
+      "withdrawn_reason": "Out of scope: domain correctness in an illustrative template, and Hijri correctness belongs to each app's own repository. The observation stands - the date was derived from noon of the civil date, so it changed at midnight rather than at maghrib when the Islamic day actually begins - but it is not this repo's concern.",
+      "file": "examples/prayer-times-display/src/js/app.js",
+      "line": 64
+    },
+    {
+      "id": "APPS-016",
+      "title": "Sun position evaluated once at noon rather than per prayer",
+      "original_severity": "low",
+      "withdrawn_reason": "Out of scope: domain correctness in an illustrative template. The underlying astronomy was otherwise checked and found correct - USNO low-precision solar position, the equation-of-time wrap, the Asr shadow-factor formulation and the 0.833 degree refraction constant all sound.",
+      "file": "examples/prayer-times-display/src/js/prayer.js",
+      "line": 89
+    },
+    {
+      "id": "APPS-017",
+      "title": "Midnight-crossing Isha mis-selects the next prayer after local midnight",
+      "original_severity": "low",
+      "withdrawn_reason": "DISPROVED - this was my error, not a defect. I implemented a fix, then simulated a full day comparing the original and modified selection logic and found zero observable difference at any time of day: the order array already checks Fajr before Isha, and the !activeKey fallback already yields Isha. The fix was reverted rather than shipped.",
+      "file": "examples/prayer-times-display/src/js/app.js",
+      "line": 128
+    }
+  ]
+}

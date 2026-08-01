@@ -18,6 +18,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { parse } from 'yaml';
 import { validateCompose } from './validate-compose.mjs';
+import { validateSource, rawBase, validateManifestFields } from './registry-validate.mjs';
 
 const REGISTRY = 'registry.yaml';
 
@@ -126,10 +127,37 @@ function parseAlertsManifest(id, alerts) {
   return out.length ? out : undefined;
 }
 
+// Ceilings for anything fetched from an app repo. The largest real manifest is a
+// couple of KB and the largest compose well under 10 KB, so these are generous —
+// they exist so one repo cannot stall or exhaust the unattended nightly rebuild.
+const FETCH_TIMEOUT_MS = 20_000;
+const MAX_FETCH_BYTES = 2 * 1024 * 1024; // 2 MiB
+
+// The build had no timeout and no size limit: res.text() buffered whatever the
+// remote sent, so a slow or huge response could hang the job (up to the 6-hour
+// Actions ceiling) or exhaust its memory. Read the body as a stream and stop the
+// moment it goes over budget, rather than discovering the size after buffering it.
+// (APPS-007)
 async function fetchText(url) {
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.text();
+
+  const declared = Number(res.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > MAX_FETCH_BYTES) {
+    throw new Error(`response is ${declared} bytes, over the ${MAX_FETCH_BYTES}-byte limit`);
+  }
+  if (!res.body) return '';
+
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of res.body) {
+    total += chunk.length;
+    if (total > MAX_FETCH_BYTES) {
+      throw new Error(`response exceeded the ${MAX_FETCH_BYTES}-byte limit`);
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString('utf8');
 }
 
 // Best-effort: resolve a mutable tag/branch to the commit SHA it currently points
@@ -140,6 +168,7 @@ async function resolveRefToSha(repo, ref) {
   try {
     const res = await fetch(`https://api.github.com/repos/${repo}/commits/${encodeURIComponent(ref)}`, {
       headers: { Accept: 'application/vnd.github.sha' },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) return null;
     const sha = (await res.text()).trim();
@@ -149,11 +178,9 @@ async function resolveRefToSha(repo, ref) {
   }
 }
 
-// raw.githubusercontent.com base for a repo/ref (+ optional subpath), trailing slash.
-function rawBase(repo, ref, path) {
-  const sub = path ? `${String(path).replace(/^\/+|\/+$/g, '')}/` : '';
-  return `https://raw.githubusercontent.com/${repo}/${ref}/${sub}`;
-}
+// rawBase() (the raw.githubusercontent.com URL builder) and the validation for
+// everything untrusted that reaches it live in ./registry-validate.mjs so they can
+// be unit-tested — importing this file runs the whole build.
 
 let registry = { apps: [] };
 if (existsSync(REGISTRY)) {
@@ -176,6 +203,16 @@ for (const entry of entries) {
   if (!APP_ID_RE.test(id)) fail(`${id}: invalid id — use kebab-case (a-z, 0-9, -), max 80 chars`);
   if (seen.has(id)) fail(`duplicate id in registry: ${id}`);
   seen.add(id);
+
+  // Validate everything that becomes part of a fetch URL BEFORE building one.
+  // Without this, a `..` segment in `path` silently redirected the entry to a
+  // different repository while `repo`/`commit`, the review diff and the build log
+  // all still named the pinned one — defeating the only integrity control the
+  // unattended daily rebuild has. See registry-validate.mjs. (APPS-001)
+  const sourceProblems = validateSource({ repo, ref, path });
+  if (sourceProblems.length) {
+    fail(`${id}: unsafe registry entry:\n   - ${sourceProblems.join('\n   - ')}`);
+  }
 
   // Decide what to fetch at. An explicit commit/sha pin wins; otherwise the ref.
   const pin = commit ?? sha;
@@ -221,8 +258,18 @@ for (const entry of entries) {
   }
 
   if (m.id !== id) fail(`${id}: manifest id "${m.id}" must equal the registry id "${id}"`);
-  if (!m.name) fail(`${id}: manifest "name" is required`);
-  if (!m.version) fail(`${id}: manifest "version" is required`);
+
+  // Type/length/shape validation for every field copied into the catalog entry.
+  // These come from an untrusted remote manifest and were passed through
+  // unchecked: `name` was only tested for truthiness, then sorted on with
+  // localeCompare (a numeric name crashed the build), and wrong types silently
+  // violated the platform contract in CLAUDE.md §2.3. Caps are far above the
+  // largest live value, so nothing currently listed is affected. (APPS-014)
+  const manifestProblems = validateManifestFields(m);
+  if (manifestProblems.length) {
+    fail(`${id}: manifest.yaml is not valid:\n   - ${manifestProblems.join('\n   - ')}`);
+  }
+
   if (m.category && !CATEGORIES.has(m.category)) {
     fail(`${id}: unknown category "${m.category}" (use: ${[...CATEGORIES].join(', ')})`);
   }
@@ -236,6 +283,17 @@ for (const entry of entries) {
     fail(`${id}: manifest "email" must be true or false`);
   }
   const alerts = parseAlertsManifest(id, m.alerts);
+
+  // The compose text is embedded verbatim into catalog.json, which every masjid
+  // fetches. A real one is well under 10 KB; anything near the fetch ceiling is a
+  // mistake or an attempt to bloat the catalog. (APPS-007)
+  const MAX_COMPOSE_BYTES = 64 * 1024;
+  if (Buffer.byteLength(composeText, 'utf8') > MAX_COMPOSE_BYTES) {
+    fail(
+      `${id}: docker-compose.yml is ${Buffer.byteLength(composeText, 'utf8')} bytes, over the ` +
+        `${MAX_COMPOSE_BYTES}-byte limit — it is embedded in catalog.json for every install`,
+    );
+  }
   const composeCheck = validateCompose(composeText);
   if (composeCheck.errors.length) {
     fail(`${id}: docker-compose.yml has disallowed settings:\n   - ${composeCheck.errors.join('\n   - ')}\n   See docs/BUILDING_AN_APP.md §2b (Security requirements).`);

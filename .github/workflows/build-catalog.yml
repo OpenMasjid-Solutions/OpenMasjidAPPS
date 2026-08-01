@@ -37,15 +37,32 @@ jobs:
       # scoped to Contents: write on this repo); checkout persists it so the later
       # `git push` uses it. Falls back to the default token when the secret is unset
       # (the push then fails loudly, as before, and the catalog is published manually).
-      - uses: actions/checkout@v4
+      # Actions are pinned to full commit SHAs, not mutable tags. This job holds a
+      # branch-protection-bypassing PAT and publishes the file every masjid installs
+      # from, so a moved tag on any action used here would be a direct supply-chain
+      # route into production. Same convention as cla.yml. Keep the version in the
+      # trailing comment when bumping. (APPS-006)
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           token: ${{ secrets.CATALOG_PUSH_TOKEN || github.token }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
+          cache: npm
 
-      - run: npm install
+      # `npm ci` not `npm install`: install is free to resolve a newer version
+      # inside the "^2.5.0" range and to rewrite the lockfile, so this unattended
+      # job could pull an unreviewed dependency and then publish with it. ci
+      # installs exactly what package-lock.json pins. (APPS-005)
+      - run: npm ci
+
+      # Gate the publish on the checks. catalog.json on main IS the production
+      # artifact, so the safety gate (scripts/validate-compose.mjs) must be proven
+      # working BEFORE anything is regenerated and pushed. (APPS-020)
+      - run: npm run lint
+
+      - run: npm test
 
       - run: npm run build
 

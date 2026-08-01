@@ -2,4 +2,31 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+
+# Environment files. `.env` alone missed the variants tools actually create,
+# and the platform writes each install's answers to a .env — never commit one.
 .env
+.env.*
+!.env.example
+
+# Key, certificate and credential material. Nothing of the sort has ever been
+# committed here (the audit content-scanned all 475 commits); this is to keep it
+# that way, and app authors copy this file as their starting point.
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.der
+id_rsa
+id_ed25519
+*.jks
+*.keystore
+
+# Registry auth tokens land here.
+.npmrc
+
+# Local build/test scratch.
+coverage/
+*.tsbuildinfo

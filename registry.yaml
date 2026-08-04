@@ -47,10 +47,17 @@ apps:
     repo: OpenMasjid-Solutions/OpenMasjidStudents
     ref: v0.44.0                                 # v0.44.0 — autopay is easier for parents to find, the office can choose who gets emailed about what, and payments say who took them. In the parent portal, saving a card and switching autopay on used to be the very last thing on a long page, below the balance, the children, every bill and the whole payment history — several screens of scrolling on a phone, so most families never found it. There is now a card right under the balance offering to set it up, and a tab of its own for cards and autopay; once it is on, that card says which card will be charged. In Settings there is a new Email alerts section with two halves. What PARENTS are emailed: a receipt every time they pay and a notice when their card is declined, both switchable — and a receipt now goes out however the money arrived, including cash, a check or Zelle you recorded by hand and payments made at the kiosk or on the donation site, none of which told the family anything before. (Invites and password resets always send; they are the only way a parent can reach their account.) And WHO at the masjid hears when something needs a person: add any address — the treasurer, the imām, a trustee — and tick which alerts it gets, from autopay switching itself off or a Student ID being locked after repeated failed lookups, through to every single payment. An address receives only what you ticked and grants no access to the app. Alerts also now name the household and the amount instead of saying “a family”, and they are sent by the app itself, so they no longer depend on a webhook nobody set up. Payments finally say who recorded them: cash is the one payment nobody else can verify, so the office’s list has a Recorded by column naming the person from their staff account, and card payments read “Automatic”. Fixed: an alert for a card payment that was only partly recorded had been silently dropped since 0.43.0. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
     commit: 66b75e9ad778c4057424a3d7de7541c99ab54a77
-  - id: parking-attendant
-    repo: SyButter/OpenMasjidParkingAttendant
-    ref: v0.2.1                                  # v0.2.1 — one-click install + OpenMasjidOS SSO; live board + incorrect-parking alert cards (with the car's photo) that Display can cycle as announcements; per-plate offender strikes; SQLite on /data
-    commit: 2cd04c58cdc25f5714f956ef6bbe517be3d062a5   # immutable pin (the v0.2.1 tag commit)
+  # Delisted 2026-08-01: parking-attendant (SyButter/OpenMasjidParkingAttendant).
+  # It was the only entry whose compose did not digest-pin its image, so the tag it
+  # referenced could be moved to different content and every masjid would pull that
+  # on the next install or recreate (see docs/audit/SECURITY_AUDIT.md, APPS-019).
+  # To relist: restore the four lines below, digest-pin the image in that repo's
+  # docker-compose.yml (`image: …:<tag>@sha256:<digest>`), and set `commit:` to the
+  # SHA of the release that contains the pin.
+  #   - id: parking-attendant
+  #     repo: SyButter/OpenMasjidParkingAttendant
+  #     ref: v0.2.1
+  #     commit: 2cd04c58cdc25f5714f956ef6bbe517be3d062a5
   # Example (uncomment and adapt once the app repo exists):
   # - id: prayer-times-display
   #   repo: OpenMasjid-Solutions/openmasjid-prayer-times-display

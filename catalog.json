@@ -192,36 +192,6 @@
         }
       ],
       "compose": "# SPDX-License-Identifier: AGPL-3.0-only\n# Copyright (C) 2026 OpenMasjid-Solutions\n\n# OpenMasjid Students — one container that runs everything: the four role UIs\n# (admin / teacher / finance / parent), the public admissions form, the API, the\n# Fabric provider routes, the Stripe webhook, and the SQLite data store. One image\n# to install, one to update. Least-privilege: no privileged mode, no host\n# networking, no devices, no Docker socket.\n#\n# Nothing to configure at install time beyond the settings below — install it, open\n# it, create the admin account, and set up the rest inside the app (saved to /data).\nservices:\n  app:\n    # Tag for humans + @sha256 digest for integrity (the digest is the real pin — a\n    # moved tag can't repoint it). At release, pin both (CLAUDE.md §19):\n    #   ghcr.io/openmasjid-solutions/openmasjidstudents:0.1.0@sha256:<digest>\n    image: ghcr.io/openmasjid-solutions/openmasjidstudents:0.44.0@sha256:506263a2863d6652db42b6b47a19f167cbf7915c07b36bab9df0d0e21aafc82b\n    restart: unless-stopped\n    environment:\n      PORT: \"8080\"\n      DATA_DIR: /data\n      # OpenMasjidOS Fabric: the platform writes these into the app's .env and runs\n      # compose with --env-file, which only feeds ${VAR} SUBSTITUTION — so they MUST\n      # be referenced here or SSO / notifications / app-to-app / the tunnel silently\n      # no-op. Empty defaults keep a standalone `docker compose up` quiet.\n      OPENMASJID_BASE_URL: ${OPENMASJID_BASE_URL:-}\n      OPENMASJID_APP_ID: ${OPENMASJID_APP_ID:-}\n      OPENMASJID_APP_SECRET: ${OPENMASJID_APP_SECRET:-}\n      # Public HTTPS URL from the OS Cloudflare tunnel (manifest `tunnel: true`); used\n      # for parent/teacher/finance access, the public admissions form, QR links, and\n      # inbound Stripe webhooks. Empty when not exposed.\n      OPENMASJID_PUBLIC_URL: ${OPENMASJID_PUBLIC_URL:-}\n      # No install settings: school name, currency, and the OpenMasjidOS Stripe account\n      # to charge through are all configured INSIDE the app (first-run + admin settings,\n      # saved to /data). Stripe keys are fetched server-to-server (manifest `stripe: true`),\n      # never set or stored here.\n    ports:\n      # host:container. OpenMasjidOS offers \"Open\" on the lowest published host port\n      # and picks a different free host port automatically if 8360 is already taken.\n      # Defence in depth: on an internet-exposed host (e.g. a VPS), firewall this port so\n      # it's reachable only on the masjid LAN. The app already denies admin to any non-local\n      # client (origin policy, §12.4), but keeping the port off the public internet is wise.\n      - \"8360:8080\"\n    volumes:\n      - data:/data\n    # Least-privilege hardening that is safe alongside the named data volume.\n    cap_drop:\n      - ALL\n    security_opt:\n      - no-new-privileges:true\n    tmpfs:\n      - /tmp\n\nvolumes:\n  data:\n"
-    },
-    {
-      "id": "parking-attendant",
-      "name": "Parking Attendant",
-      "tagline": "Live lot capacity and incorrect-parking reports for your masjid's screens",
-      "category": "utilities",
-      "version": "0.2.1",
-      "author": "SyButter",
-      "license": "MIT",
-      "icon": "https://raw.githubusercontent.com/SyButter/OpenMasjidParkingAttendant/2cd04c58cdc25f5714f956ef6bbe517be3d062a5/icon.svg",
-      "screenshots": [
-        "https://raw.githubusercontent.com/SyButter/OpenMasjidParkingAttendant/2cd04c58cdc25f5714f956ef6bbe517be3d062a5/screenshots/1.svg",
-        "https://raw.githubusercontent.com/SyButter/OpenMasjidParkingAttendant/2cd04c58cdc25f5714f956ef6bbe517be3d062a5/screenshots/2.svg"
-      ],
-      "description": "A live parking board for the screens at your masjid, plus a phone-friendly tool for\nyour parking volunteers.\n\n**On the screen (the Board).** Each parking area shows how full it is — Open, Filling,\nor Full — with a big count and a gauge, updated the instant an attendant changes it.\nIt also surfaces **incorrect-parking reports**: any car a volunteer flags appears with a\nred border, an \"Incorrect Parking\" banner, the photo(s), the license plate, a short\ndescription of the car, where it is, and why it was reported.\n\n**On a phone (the Control app, at `/control`).** Approved attendants tap **+/−** to keep\neach area's count current and post incorrect-parking reports with photos straight from\ntheir camera. Repeat offenders are tracked automatically by license plate (a strike each\ntime they're reported). The admin manages the parking areas, the masjid name and other\nsettings, and approves or suspends attendants — all inside the app.\n\n**Nothing to fill in here — just install.** When it's running, click **Open** — that's\nthe Board; put it full-screen on your TV (F11 on most browsers). It signs you in with your\nOpenMasjidOS login and matches your dashboard's look. Then set everything up inside: your\nmasjid name, parking areas, and thresholds. Volunteers go to the same address with\n**/control** on the end, create an account, and you approve them. All data stays on your\nown server.\n",
-      "ports": [
-        {
-          "container": 8080,
-          "label": "Web interface"
-        }
-      ],
-      "sso": true,
-      "fabric": {
-        "provides": [
-          {
-            "capability": "parking"
-          }
-        ]
-      },
-      "compose": "# SPDX-License-Identifier: MIT\nservices:\n  app:\n    # Pinned, public, matches the repo name (the build workflow pushes\n    # ghcr.io/<owner-lowercased>/<repo-lowercased>:<version>). For a real release,\n    # digest-pin for integrity — append @sha256:<digest> so a moved tag can't\n    # repoint it (see docs/BUILDING_AN_APP.md §2b in the catalog repo):\n    #   image: ghcr.io/sybutter/openmasjidparkingattendant:0.2.1@sha256:<64 hex>\n    image: ghcr.io/sybutter/openmasjidparkingattendant:0.2.1\n    restart: unless-stopped\n    # One-click install: no settings. Everything masjid-specific is configured inside\n    # the app (stored in SQLite on the /data volume) after install.\n    environment:\n      # OpenMasjidOS Fabric — the platform writes these into our .env at install\n      # because the manifest declares `sso` + a `fabric:` capability. They only reach\n      # the container if referenced here. Empty defaults keep a standalone `up` quiet.\n      OPENMASJID_BASE_URL: ${OPENMASJID_BASE_URL:-}\n      OPENMASJID_APP_ID: ${OPENMASJID_APP_ID:-}\n      OPENMASJID_APP_SECRET: ${OPENMASJID_APP_SECRET:-}\n    ports:\n      # host:container — the platform offers \"Open\" on the published host port and\n      # remaps automatically if 8749 is already taken.\n      - \"8749:8080\"\n    volumes:\n      - data:/data\nvolumes:\n  data:\n"
     }
   ]
 }

@@ -36,6 +36,8 @@ import {
   imageRefsIn,
   CHANNEL_BRANCH,
   COMMIT_SHA_RE,
+  devVersionIsAcceptable,
+  compareVersions,
 } from './channels.mjs';
 
 const REGISTRY = 'registry.yaml';
@@ -254,7 +256,7 @@ async function resolveRefToSha(repo, ref) {
  * would be noise. The ref is still resolved to the SHA it currently points at, so
  * the catalog references immutable content for that build either way.
  */
-async function loadFrom(id, repo, path, declared, { allowMissing = false, mutableIsExpected = false } = {}) {
+async function loadFrom(id, repo, path, declared, { allowMissing = false, mutableIsExpected = false, manifestOnly = false } = {}) {
   let fetchRef = String(declared);
   let immutable = COMMIT_SHA_RE.test(fetchRef);
 
@@ -281,13 +283,29 @@ async function loadFrom(id, repo, path, declared, { allowMissing = false, mutabl
     if (allowMissing && e.status === 404) return null;
     fail(`${id}: could not fetch manifest.yaml from ${repo}@${fetchRef} (${e.message})`);
   }
-  try {
-    composeText = await fetchText(base + 'docker-compose.yml');
-  } catch (e) {
-    if (allowMissing && e.status === 404) return null;
-    fail(`${id}: could not fetch docker-compose.yml from ${repo}@${fetchRef} (${e.message})`);
+  // A version peek (manifestOnly) skips the compose fetch — it exists only to
+  // answer "is the dev branch behind the stable release?" before deciding which
+  // source to actually publish, so paying for the compose would be waste.
+  if (!manifestOnly) {
+    try {
+      composeText = await fetchText(base + 'docker-compose.yml');
+    } catch (e) {
+      if (allowMissing && e.status === 404) return null;
+      fail(`${id}: could not fetch docker-compose.yml from ${repo}@${fetchRef} (${e.message})`);
+    }
   }
   return { declared: String(declared), fetchRef, immutable, base, manifestText, composeText };
+}
+
+// The version a manifest declares, without validating the rest of it (that happens
+// later, on whichever source we end up publishing). Returns null if unreadable.
+function peekVersion(manifestText) {
+  try {
+    const m = parse(manifestText) ?? {};
+    return m.version == null ? null : String(m.version);
+  } catch {
+    return null;
+  }
 }
 
 let registry = { apps: [] };
@@ -302,6 +320,9 @@ const entries = Array.isArray(registry.apps) ? registry.apps : [];
 
 const apps = [];
 const seen = new Set();
+// What each app resolved to versus its stable release, so the freshness invariant
+// can be asserted over the whole catalog once it is built (not just per entry).
+const versionLedger = [];
 
 for (const entry of entries) {
   // Two channel columns, one schema (CLAUDE.md "Channels"):
@@ -347,6 +368,7 @@ for (const entry of entries) {
   // otherwise the dev channel would just republish stable.
   const stableDeclared = pin != null ? String(pin) : String(ref);
   let src = null;
+  let stableVersion = null;
   if (isDevChannel && devRef) {
     src = await loadFrom(id, repo, path, String(devRef), { allowMissing: true, mutableIsExpected: true });
     if (!src) {
@@ -357,6 +379,29 @@ for (const entry of entries) {
         `${id}: dev_ref "${devRef}" does not exist in ${repo} (HTTP 404) — the dev catalog is falling ` +
           `back to the stable release "${stableDeclared}". Create that branch in the app repo, or drop dev_ref.`,
       );
+    } else {
+      // THE FRESHNESS FLOOR. The dev channel must never offer a version older than
+      // stable — to a masjid that reads as an app DOWNGRADE. An app's dev branch can
+      // legitimately fall behind its own release (a hotfix cut on main and not merged
+      // down), so peek at the stable version and prefer whichever is newer. Equal is
+      // fine and is the normal case: a moving `:dev` tag ships new content under an
+      // unchanged version string.
+      const stablePeek = await loadFrom(id, repo, path, stableDeclared, {
+        allowMissing: true,
+        mutableIsExpected: true, // the real load below warns; don't warn twice
+        manifestOnly: true,
+      });
+      stableVersion = stablePeek ? peekVersion(stablePeek.manifestText) : null;
+      const devVersion = peekVersion(src.manifestText);
+      if (!devVersionIsAcceptable(devVersion, stableVersion)) {
+        warn(
+          `${id}: dev branch "${devRef}" declares version ${JSON.stringify(devVersion)} but the stable ` +
+            `release is ${JSON.stringify(stableVersion)} — publishing it would offer a DOWNGRADE on the dev ` +
+            `channel, so the dev catalog is serving the stable release instead. Merge the release into ` +
+            `${repo}@${devRef} (or bump its manifest version) and the dev channel will pick it up.`,
+        );
+        src = null; // fall through to the stable load below
+      }
     }
   }
   let usedFallback = false;
@@ -502,8 +547,49 @@ for (const entry of entries) {
     alerts,
     compose: composeText,
   });
+  // On a fallback the published version IS the stable one, so the floor holds by
+  // construction. Record both so the invariant can be asserted over the finished
+  // catalog rather than trusted per entry.
+  versionLedger.push({
+    id,
+    published: String(m.version),
+    stable: usedFallback ? String(m.version) : stableVersion,
+  });
+
   const via = isDevChannel ? (usedFallback ? ' [stable fallback]' : ' [dev]') : '';
   console.log(`✓ ${id} ← ${repo}@${fetchRef}${immutable ? '' : ' (mutable ref)'}${via}`);
+}
+
+// THE FRESHNESS ASSERTION. The floor above should make this unreachable — it is
+// here because "the dev channel is never behind stable" is the invariant a masjid
+// actually feels (switching to Development must never offer a downgrade), and an
+// invariant that matters should be checked, not assumed. If this fires, the floor
+// has a bug: fail rather than publish a catalog that downgrades apps.
+//
+// This is the mirror of the stable channel's gate. main refuses to publish dev
+// content; dev refuses to publish anything older than main.
+if (isDevChannel) {
+  const behind = [];
+  for (const v of versionLedger) {
+    if (v.stable == null) continue; // no stable release to be behind
+    const cmp = compareVersions(v.published, v.stable);
+    if (cmp === null) {
+      warn(
+        `${v.id}: cannot compare dev version ${JSON.stringify(v.published)} with stable ` +
+          `${JSON.stringify(v.stable)} — neither is semver, so freshness could not be verified`,
+      );
+    } else if (cmp < 0) {
+      behind.push(`${v.id}: dev would publish ${v.published}, older than the stable release ${v.stable}`);
+    }
+  }
+  if (behind.length) {
+    fail(
+      `the dev channel must never be behind stable — a masjid switching to Development would be ` +
+        `offered a DOWNGRADE:\n   - ${behind.join('\n   - ')}\n   This should have been prevented by the ` +
+        `freshness floor in this script; treat it as a bug in the floor, not a reason to relax the check.`,
+    );
+  }
+  console.log(`✓ freshness: all ${versionLedger.length} entry(ies) are at or ahead of their stable release.`);
 }
 
 // Coming-soon teasers — metadata only, no repo/compose. The platform renders

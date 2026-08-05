@@ -591,15 +591,42 @@ unreleased may reach it.
    is the point);
 4. **`dev_ref: dev`** on your registry entry.
 
+**Keep your `dev` branch at or ahead of your release.** If your `dev` branch declares an older
+`version` than your latest stable release — the usual cause is a hotfix cut on `main` and never
+merged down — the catalog will **not** publish it. It serves your stable release on the dev channel
+instead, with a warning, because publishing it would offer a masjid a downgrade. Merge your release
+into `dev` (or bump the manifest there) and the next rebuild picks it up. Equal versions on both
+branches are fine: a moving `:dev` tag ships new content under an unchanged version string.
+
+**Trigger a rebuild when you push to `dev`.** The catalog rebuilds hourly on its own, so you never
+*have* to — but if you want your dev build listed within seconds rather than within the hour, fire a
+`repository_dispatch` at the catalog from your app repo's release/dev workflow:
+
+```yaml
+      - name: Refresh the OpenMasjid catalog
+        run: |
+          curl -fsS -X POST \
+            -H "Authorization: Bearer ${{ secrets.CATALOG_DISPATCH_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/OpenMasjid-Solutions/OpenMasjidAPPS/dispatches \
+            -d '{"event_type":"rebuild-catalog","client_payload":{"channel":"dev"}}'
+```
+
+`channel` accepts `dev`, `main` or `both` (default `both`). The token needs **Contents: write** on
+the catalog repo — ask a catalog maintainer for one; don't reuse a token with wider scope.
+
 Notes:
-- The dev channel follows your `dev` branch: the catalog rebuilds daily and picks up whatever is
+- The dev channel follows your `dev` branch: the catalog rebuilds hourly and picks up whatever is
   there, resolved to the commit it is at. **Do not push anything to `dev` you would not want a real
   masjid's test box to install.**
 - Keep `manifest.yaml` valid on `dev` too — same `id`, same rules. It is fetched from that branch.
 - Skip `dev_ref` and you still appear on the dev channel: it falls back to your stable release. That
   is the right choice until you actually have a dev branch to serve.
-- Your `version` should differ between the branches (bump it on `dev`) so testers can tell which
-  build they are on.
+- **You do not need a different `version` on `dev`.** OpenMasjidOS compares *channels*, not version
+  numbers, so the same version on both branches is fine and is the normal case for a moving `:dev`
+  tag. Bumping it on `dev` (e.g. `0.67.0` while stable is `0.66.1`) is still helpful for humans — it
+  makes the App Store say what a tester is on — but it is not required. What *is* required is that
+  `dev` is never **lower** than your release; see above.
 
 ---
 

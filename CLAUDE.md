@@ -299,6 +299,19 @@ git fetch origin && git tag -a vX.Y.Z <merge-commit> -m "…" && git push origin
 gh release create vX.Y.Z --title "…" --notes-file <notes>
 ```
 
+**Then bring `dev` back in line** — the last step of every release, not an optional tidy-up:
+
+```bash
+git checkout dev && git merge --ff-only origin/main   # dev's catalog.json is now the STABLE one
+npm run build -- --channel dev                        # ...so rebuild it BEFORE pushing
+npm run check && git commit -am "chore: restore the dev-channel catalog after the release"
+```
+
+Do the rebuild **before** the push, in the same push — otherwise the dev channel serves stable
+content until the next hourly rebuild, which is the freshness bug in miniature. Skipping this step
+entirely is also wrong: `dev` would stay strictly behind `main`, and the *next* release would hit a
+`catalog.json` conflict on a PR that should have merged cleanly.
+
 Version the **catalog repo**, not the apps — each app carries its own version in its own manifest,
 and the platform never reads a version from this repo. Notes should say what changed for a masjid
 (new or delisted apps, channel behaviour) and what changed for an app author (contract changes),

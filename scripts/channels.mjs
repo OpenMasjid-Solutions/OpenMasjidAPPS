@@ -133,6 +133,85 @@ export function looksLikeBranch(ref) {
   return DEV_BRANCH_NAMES.has(ref.toLowerCase()) || ref.includes('/');
 }
 
+// --- versions -------------------------------------------------------------
+
+/**
+ * Parse a semver-ish version into comparable parts, or null if it isn't one.
+ * Accepts `1`, `1.2`, `1.2.3`, `v1.2.3`, `1.2.3-rc.1`, `1.2.3+build.4`.
+ */
+export function parseVersion(v) {
+  if (typeof v !== 'string') return null;
+  const m = /^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(v.trim());
+  if (!m) return null;
+  return {
+    parts: [Number(m[1]), Number(m[2] ?? 0), Number(m[3] ?? 0)],
+    // Semver: a version WITH a prerelease is lower than the same without one.
+    prerelease: m[4] ? m[4].split('.') : null,
+  };
+}
+
+/**
+ * Compare two versions: -1 / 0 / 1, or **null when either is not parseable**.
+ *
+ * null means "don't know" and callers must treat it as such — never as equal.
+ * Silently treating an unreadable version as equal would let a genuinely older
+ * dev build pass the freshness floor below.
+ */
+export function compareVersions(a, b) {
+  const pa = parseVersion(a);
+  const pb = parseVersion(b);
+  if (!pa || !pb) return null;
+
+  for (let i = 0; i < 3; i++) {
+    if (pa.parts[i] !== pb.parts[i]) return pa.parts[i] < pb.parts[i] ? -1 : 1;
+  }
+  // 1.2.3 > 1.2.3-rc.1
+  if (!pa.prerelease && !pb.prerelease) return 0;
+  if (!pa.prerelease) return 1;
+  if (!pb.prerelease) return -1;
+
+  const n = Math.max(pa.prerelease.length, pb.prerelease.length);
+  for (let i = 0; i < n; i++) {
+    const x = pa.prerelease[i];
+    const y = pb.prerelease[i];
+    if (x === undefined) return -1; // fewer identifiers sorts lower
+    if (y === undefined) return 1;
+    const xn = /^\d+$/.test(x);
+    const yn = /^\d+$/.test(y);
+    if (xn && yn) {
+      if (Number(x) !== Number(y)) return Number(x) < Number(y) ? -1 : 1;
+    } else if (xn !== yn) {
+      return xn ? -1 : 1; // numeric identifiers sort lower than alphanumeric
+    } else if (x !== y) {
+      return x < y ? -1 : 1;
+    }
+  }
+  return 0;
+}
+
+/**
+ * THE FRESHNESS INVARIANT: **the dev channel must never be behind stable.**
+ *
+ * A masjid switching to the Development channel must never be offered a version
+ * older than the one it is already running — that reads as an app downgrade in the
+ * dashboard, which is what happened on 2026-08-05 when the dev catalog went
+ * unrebuilt while three apps shipped stable releases.
+ *
+ * Equal versions are fine and are the normal case: a moving `:dev` tag publishes
+ * new content under an unchanged version string, and the platform compares
+ * channels rather than version numbers.
+ *
+ * Returns true when `devVersion` may be published on the dev channel. An
+ * unparseable pair returns false — refuse to claim freshness we cannot establish,
+ * and let the caller fall back to the stable release.
+ */
+export function devVersionIsAcceptable(devVersion, stableVersion) {
+  if (stableVersion == null) return true; // nothing to be behind
+  const cmp = compareVersions(devVersion, stableVersion);
+  if (cmp === null) return false;
+  return cmp >= 0;
+}
+
 // --- images ---------------------------------------------------------------
 
 /** Every `image:` value in a compose file, in order. */

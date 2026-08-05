@@ -231,6 +231,37 @@ An app missing any of that still appears on the dev channel — it **falls back 
 release**, with a build notice (a declared-but-missing `dev_ref` gets a ⚠ warning). The dev channel
 always lists every app.
 
+### Freshness — the dev channel must never be behind stable
+
+This is the mirror of the leakage rule below, and it is just as load-bearing. If
+`dev/catalog.json` reports an older version than `main/catalog.json`, a masjid switching to the
+Development channel is offered an **app downgrade** — which is what happened on **2026-08-05**: three
+apps shipped stable releases, nothing rebuilt the dev catalog, and the dashboard offered to move
+every app backwards. Equal versions across channels are fine and normal (a moving `:dev` tag ships
+new content under an unchanged version string); *older* is a bug.
+
+Two mechanisms, in this order:
+
+1. **The freshness floor (prevention).** On the dev channel the build peeks at each app's stable
+   version and publishes the **newer** of the two columns. An app's `dev` branch can legitimately
+   fall behind its own release — a hotfix cut on `main` and never merged down — and in that case the
+   dev catalog serves the **stable release** for that app, with a ⚠ warning naming the repo. So the
+   invariant holds by construction, not by luck. A version that cannot be parsed counts as *not*
+   acceptable: the build falls back rather than claim freshness it cannot establish.
+2. **The assertion (detection).** After the catalog is built, every entry is compared against its
+   stable version and the build **fails** if any is behind. The floor should make this unreachable —
+   it exists because this is the invariant a masjid actually feels, and because a bug in the floor
+   must not reach a dashboard. If it ever fires, fix the floor; do not relax the check.
+
+**Staleness is the other half.** A dev catalog goes stale when an app's `dev_ref` branch moves *and*
+when an app's stable release moves (because fallback entries and the floor both follow stable). So:
+
+- the schedule is **hourly**, not daily;
+- a push to **`main` rebuilds `dev` too** — a stable release invalidates the dev catalog;
+- an app repo can force a rebuild immediately with `repository_dispatch` (`rebuild-catalog`) — see
+  [`docs/BUILDING_AN_APP.md` §8b](docs/BUILDING_AN_APP.md). That is the prompt path; the hourly
+  schedule is the floor under it.
+
 **The one rule that must not break: no dev content on `main`.** `main/catalog.json` is production —
 the platform fetches that raw file with no build, deploy or staging step in between, so anything
 landing there is live to every masjid instantly. Three gates enforce it:

@@ -26,8 +26,15 @@ on:
       - 'scripts/**'
       - 'package.json'
       - '.github/workflows/build-catalog.yml'
+  # HOURLY, not daily. The dev channel tracks each app's `dev` branch, and it also
+  # falls back to an app's stable release when that app has no dev branch — so a dev
+  # catalog goes stale both when an app's dev branch moves AND when its stable
+  # release moves. A daily rebuild meant up to 24h of staleness; on 2026-08-05 that
+  # showed up as the dev channel offering three apps a DOWNGRADE, because stable
+  # advanced and dev was never rebuilt. An app repo firing `repository_dispatch`
+  # (rebuild-catalog) is the prompt path; this is the floor under it.
   schedule:
-    - cron: '17 6 * * *'
+    - cron: '17 * * * *'
   workflow_dispatch:
     inputs:
       channel:
@@ -42,9 +49,15 @@ permissions:
   contents: write
 
 jobs:
-  # Decide which branches this run publishes. A push publishes only the branch that
-  # was pushed; everything else (cron, manual, an app repo signalling a release)
-  # refreshes both channels unless it asks for one.
+  # Decide which branches this run publishes.
+  #
+  # A push to `dev` publishes dev only — main does not depend on dev.
+  # A push to `main` publishes main AND dev, because dev DOES depend on main: an app
+  #   with no dev branch falls back to its stable release, and every dev entry is
+  #   floored at its stable version so the dev channel can never offer a downgrade.
+  #   A stable release therefore invalidates the dev catalog, and before this the dev
+  #   catalog just sat there being wrong (2026-08-05).
+  # Everything else (cron, manual, an app repo signalling a release) refreshes both.
   plan:
     runs-on: ubuntu-latest
     outputs:
@@ -62,7 +75,9 @@ jobs:
           set -euo pipefail
           if [ "$EVENT" = push ]; then
             case "$PUSHED" in
-              main|dev) printf 'branches=["%s"]\n' "$PUSHED" >> "$GITHUB_OUTPUT" ;;
+              # main moved: refresh main, then dev, whose freshness floor is main.
+              main) echo 'branches=["main","dev"]' >> "$GITHUB_OUTPUT" ;;
+              dev)  echo 'branches=["dev"]'        >> "$GITHUB_OUTPUT" ;;
               *) echo "::error::refusing to publish from branch '$PUSHED' — only main and dev carry a catalog"; exit 1 ;;
             esac
           else

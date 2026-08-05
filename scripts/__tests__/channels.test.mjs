@@ -27,6 +27,9 @@ import {
   isDevImageTag,
   isDevImageRef,
   findDevArtifacts,
+  parseVersion,
+  compareVersions,
+  devVersionIsAcceptable,
 } from '../channels.mjs';
 
 const SHA = 'a'.repeat(40);
@@ -296,6 +299,78 @@ test('findDevArtifacts copes with missing input', () => {
   assert.deepEqual(findDevArtifacts(), []);
   assert.deepEqual(findDevArtifacts({}), []);
   assert.deepEqual(findDevArtifacts({ ref: '', composeText: '' }), []);
+});
+
+// --- versions and the freshness invariant ---------------------------------
+
+test('parseVersion accepts the shapes app manifests actually use', () => {
+  assert.deepEqual(parseVersion('0.66.1').parts, [0, 66, 1]);
+  assert.deepEqual(parseVersion('v0.66.1').parts, [0, 66, 1]);
+  assert.deepEqual(parseVersion('1.2').parts, [1, 2, 0]);
+  assert.deepEqual(parseVersion('3').parts, [3, 0, 0]);
+  assert.deepEqual(parseVersion('1.2.3-rc.1').prerelease, ['rc', '1']);
+  assert.equal(parseVersion('1.2.3+build.4').prerelease, null);
+});
+
+test('parseVersion rejects what is not a version', () => {
+  for (const v of ['', 'dev', 'latest', 'v', '1.2.3.4', 'x1.0', null, undefined, 42, {}]) {
+    assert.equal(parseVersion(v), null, `${JSON.stringify(v)}`);
+  }
+});
+
+test('compareVersions orders releases', () => {
+  assert.equal(compareVersions('0.66.1', '0.66.0'), 1);
+  assert.equal(compareVersions('0.66.0', '0.66.1'), -1);
+  assert.equal(compareVersions('0.66.1', '0.66.1'), 0);
+  assert.equal(compareVersions('0.47.0', '0.45.2'), 1);
+  assert.equal(compareVersions('1.0.0', '0.99.99'), 1);
+  assert.equal(compareVersions('v0.10.2', '0.10.1'), 1); // leading v is cosmetic
+});
+
+test('compareVersions follows semver on prereleases', () => {
+  assert.equal(compareVersions('1.0.0', '1.0.0-rc.1'), 1); // release beats prerelease
+  assert.equal(compareVersions('1.0.0-rc.1', '1.0.0-rc.2'), -1);
+  assert.equal(compareVersions('1.0.0-rc.2', '1.0.0-rc.10'), -1); // numeric, not lexical
+  assert.equal(compareVersions('1.0.0-alpha', '1.0.0-beta'), -1);
+  assert.equal(compareVersions('1.0.0-rc', '1.0.0-rc.1'), -1); // fewer identifiers sort lower
+  assert.equal(compareVersions('1.0.0-1', '1.0.0-alpha'), -1); // numeric below alphanumeric
+});
+
+test('compareVersions returns null — not 0 — when it cannot tell', () => {
+  // Treating "unknown" as "equal" would let a genuinely older dev build satisfy the
+  // freshness floor, which is the whole thing the floor exists to stop.
+  assert.equal(compareVersions('dev', '1.0.0'), null);
+  assert.equal(compareVersions('1.0.0', 'nightly'), null);
+  assert.equal(compareVersions(null, '1.0.0'), null);
+});
+
+test('THE INVARIANT: dev may publish a version at or ahead of stable', () => {
+  assert.ok(devVersionIsAcceptable('0.66.1', '0.66.1')); // equal is the NORMAL case
+  assert.ok(devVersionIsAcceptable('0.47.0', '0.45.2')); // ahead
+  assert.ok(devVersionIsAcceptable('1.0.0-rc.1', '0.99.0'));
+});
+
+test('THE INVARIANT: dev may not publish a version behind stable', () => {
+  // This is the 2026-08-05 regression, in one line per app. The dev catalog went
+  // unrebuilt while three apps shipped stable releases, so switching a masjid to the
+  // Development channel offered to move every app BACKWARDS.
+  assert.equal(devVersionIsAcceptable('0.66.0', '0.66.1'), false); // display
+  assert.equal(devVersionIsAcceptable('0.40.0', '0.40.1'), false); // donations
+  assert.equal(devVersionIsAcceptable('0.10.1', '0.10.2'), false); // kiosk
+  assert.equal(devVersionIsAcceptable('1.0.0-rc.1', '1.0.0'), false); // prerelease behind release
+});
+
+test('THE INVARIANT: an unverifiable version is refused, not waved through', () => {
+  // Refusing means "fall back to the stable release", which is always safe. Claiming
+  // freshness we cannot establish is not.
+  assert.equal(devVersionIsAcceptable('dev', '0.66.1'), false);
+  assert.equal(devVersionIsAcceptable(null, '0.66.1'), false);
+  assert.equal(devVersionIsAcceptable('0.66.1', 'not-a-version'), false);
+});
+
+test('THE INVARIANT: with no stable release there is nothing to be behind', () => {
+  assert.ok(devVersionIsAcceptable('0.1.0', null));
+  assert.ok(devVersionIsAcceptable('anything', null));
 });
 
 test('a resolved commit SHA never reads as dev — which is why the DECLARED ref is judged', () => {

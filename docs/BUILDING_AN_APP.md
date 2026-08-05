@@ -83,6 +83,8 @@ auto-published `catalog.json`. These rules keep that supply chain safe. The cata
    (or read it from the GHCR package page). Bump both the tag and the digest on every release.
    *(Likewise, ask the catalog maintainer to pin your registry entry to an immutable `commit:` SHA, not
    a movable tag — see [`../registry.yaml`](../registry.yaml).)*
+   This applies to the **stable** channel. A `dev`-branch compose tracks the moving `:dev` tag on
+   purpose and is exempt — see §8b.
 
 2. **Treat any Fabric SSO/session value as an IDENTITY assertion, never a credential.** The Fabric
    answer to *"is the current viewer the platform admin?"* is the **only** thing it tells you. Never
@@ -555,11 +557,49 @@ Open a PR to **OpenMasjidAPPS** adding your app to [`../registry.yaml`](../regis
 apps:
   - id: my-app
     repo: <owner>/openmasjid-my-app
-    ref: v1.0.0            # the tag you published
+    ref: v1.0.0            # STABLE channel — the release TAG you published (never a branch)
+    commit: <40-char SHA>  # recommended — the immutable SHA that tag is at
+    dev_ref: dev           # OPTIONAL — DEV channel; omit if you have no dev branch
 ```
 
 CI fetches your repo, validates it, and regenerates `catalog.json`. Your app then appears in the
 store.
+
+### 8b. Update channels — stable and dev
+
+OpenMasjidOS has an **Update Channel** setting. It swaps the branch in the single URL it fetches, so
+the catalog exists twice — once per branch of OpenMasjidAPPS:
+
+```
+.../OpenMasjidAPPS/main/catalog.json     ← stable: what every masjid installs
+.../OpenMasjidAPPS/dev/catalog.json      ← dev: testers who opted in
+```
+
+**Stable is the default and the one that matters.** Your `ref` must be a **published release tag**
+(or a commit SHA) and your compose must reference a **release-tagged, `@sha256` digest-pinned**
+image. A branch in `ref`, or a dev-tagged image anywhere in the compose, **fails the catalog build** —
+`main/catalog.json` is fetched directly by every masjid with no deploy step in between, so nothing
+unreleased may reach it.
+
+**Shipping on the dev channel is optional.** To do it, your repo needs all four:
+
+1. a **`dev` branch**;
+2. a **dev-tagged image published from it** — `ghcr.io/<owner>/<repo>:dev`, multi-arch, public, same
+   as your release image but rebuilt from `dev`;
+3. your **dev branch's `docker-compose.yml` referencing that `:dev` tag** (a moving tag is expected
+   here — this is the only place the catalog does not ask you to digest-pin, because tracking the tag
+   is the point);
+4. **`dev_ref: dev`** on your registry entry.
+
+Notes:
+- The dev channel follows your `dev` branch: the catalog rebuilds daily and picks up whatever is
+  there, resolved to the commit it is at. **Do not push anything to `dev` you would not want a real
+  masjid's test box to install.**
+- Keep `manifest.yaml` valid on `dev` too — same `id`, same rules. It is fetched from that branch.
+- Skip `dev_ref` and you still appear on the dev channel: it falls back to your stable release. That
+  is the right choice until you actually have a dev branch to serve.
+- Your `version` should differ between the branches (bump it on `dev`) so testers can tell which
+  build they are on.
 
 ---
 
@@ -572,6 +612,9 @@ store.
       volumes, **no** privileged / host-namespace / device / socket / sensitive-mount access,
       **no** `extends`/`include`, **no** discovery labels. (Rejected at build AND at install.)
 - [ ] Image is **digest-pinned** (`@sha256:…`), not just tagged, so a moved tag can't repoint it (§2b.1).
+- [ ] Registry `ref` is a **release tag**, never a branch; a branch belongs in `dev_ref` (§8b).
+- [ ] If shipping on the dev channel: `dev` branch exists, publishes a `:dev` image, its compose
+      references that tag, and the registry entry carries `dev_ref` (§8b).
 - [ ] Fabric SSO/session is used **only** as an identity check, never as a credential to call the
       platform API; `OPENMASJID_BASE_URL` is `https://` for any cross-host deployment (§2b.2–3).
 - [ ] Image is **public** on GHCR and **multi-arch** (amd64 + arm64).

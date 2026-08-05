@@ -39,10 +39,30 @@ const URL_UNSAFE = /[\s%?#@\\:]|[\x00-\x1f\x7f-\x9f]/;
 const CONTROL_CHARS = /[\x00-\x1f\x7f-\x9f]/;
 
 /**
- * Validate the three registry fields that become part of a fetch URL.
- * Returns an array of human-readable problems; empty means safe to use.
+ * Validate one ref-shaped field (`ref` or `dev_ref`). Both are interpolated into
+ * the same fetch URL, so both get identical treatment — a dev channel is not a
+ * reason to relax URL safety.
  */
-export function validateSource({ repo, ref, path }) {
+function refProblems(field, value) {
+  const problems = [];
+  const r = String(value);
+  if (!REF_RE.test(r) || URL_UNSAFE.test(r)) {
+    problems.push(`"${field}" must be a plain git ref — letters, digits, ".", "_", "-", "/" (got ${JSON.stringify(value)})`);
+  } else if (r.includes('..')) {
+    problems.push(`"${field}" must not contain ".." (got ${JSON.stringify(value)})`);
+  }
+  return problems;
+}
+
+/**
+ * Validate the registry fields that become part of a fetch URL.
+ * Returns an array of human-readable problems; empty means safe to use.
+ *
+ * `dev_ref` is the dev channel's address for the same app (CLAUDE.md "Channels").
+ * It is a moving branch by design, but it is still interpolated into a URL, so it
+ * passes exactly the same checks as `ref`.
+ */
+export function validateSource({ repo, ref, path, dev_ref: devRef }) {
   const problems = [];
 
   if (typeof repo !== 'string' || !REPO_RE.test(repo)) {
@@ -51,14 +71,8 @@ export function validateSource({ repo, ref, path }) {
     );
   }
 
-  if (ref != null) {
-    const r = String(ref);
-    if (!REF_RE.test(r) || URL_UNSAFE.test(r)) {
-      problems.push(`"ref" must be a plain git ref — letters, digits, ".", "_", "-", "/" (got ${JSON.stringify(ref)})`);
-    } else if (r.includes('..')) {
-      problems.push(`"ref" must not contain ".." (got ${JSON.stringify(ref)})`);
-    }
-  }
+  if (ref != null) problems.push(...refProblems('ref', ref));
+  if (devRef != null && String(devRef) !== '') problems.push(...refProblems('dev_ref', devRef));
 
   if (path != null && String(path) !== '') {
     const p = String(path);

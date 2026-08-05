@@ -116,6 +116,54 @@ test('ref cannot contain ".." or URL punctuation or whitespace', () => {
   }
 });
 
+// --- dev_ref (the dev channel's column) -----------------------------------
+test('dev_ref accepts the branch shapes a dev channel tracks', () => {
+  for (const dev_ref of ['dev', 'develop', 'dev/next', 'feature-a_b', SHA]) {
+    ok({ repo: 'o/r', ref: 'v1.0.0', dev_ref });
+  }
+});
+
+test('an absent or empty dev_ref is accepted — the dev channel falls back to the release', () => {
+  ok({ repo: 'o/r', ref: 'v1.0.0' });
+  ok({ repo: 'o/r', ref: 'v1.0.0', dev_ref: '' });
+  ok({ repo: 'o/r', ref: 'v1.0.0', dev_ref: null });
+});
+
+test('dev_ref gets exactly the same URL safety checks as ref', () => {
+  // Being the development channel is not a reason to relax URL validation: the
+  // value is interpolated into the same raw.githubusercontent.com URL, so a `..`
+  // there would redirect the entry to another repository just as it would in `ref`.
+  for (const dev_ref of ['dev/../../other', '..', 'a..b', 'dev?x', 'dev#f', 'de v', 'de\tv', 'de\nv', '%2e%2e']) {
+    bad({ repo: 'o/r', ref: 'v1.0.0', dev_ref }, '"dev_ref"');
+  }
+});
+
+test('a bad dev_ref is named as dev_ref, not as ref', () => {
+  // The message has to point at the right column or the maintainer edits the wrong line.
+  const problems = validateSource({ repo: 'o/r', ref: 'v1.0.0', dev_ref: 'a..b' });
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /"dev_ref"/);
+  assert.doesNotMatch(problems[0], /"ref"/);
+});
+
+test('both ref columns are reported when both are bad', () => {
+  const problems = validateSource({ repo: 'o/r', ref: 'a..b', dev_ref: 'c..d' });
+  assert.equal(problems.length, 2);
+  assert.match(problems[0], /"ref"/);
+  assert.match(problems[1], /"dev_ref"/);
+});
+
+test('the four live entries are accepted with their dev column', () => {
+  for (const repo of [
+    'OpenMasjid-Solutions/OpenMasjidDisplay',
+    'OpenMasjid-Solutions/OpenMasjidDonations',
+    'OpenMasjid-Solutions/OpenMasjidKiosk',
+    'OpenMasjid-Solutions/OpenMasjidStudents',
+  ]) {
+    ok({ repo, ref: 'v0.66.0', commit: SHA, dev_ref: 'dev' });
+  }
+});
+
 // --- asset paths ----------------------------------------------------------
 test('asset paths reject traversal, absolute URLs and protocol-relative URLs', () => {
   assert.deepEqual(validateAssetPath('icon', 'icon.svg'), []);

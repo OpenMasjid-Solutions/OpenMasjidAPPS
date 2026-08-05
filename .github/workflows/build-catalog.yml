@@ -7,10 +7,20 @@ name: Build catalog
 # assembles the catalog, so we rebuild when the registry/tooling changes, on a
 # daily schedule (to pick up apps whose entry tracks a branch), on manual run, and
 # when an app repo signals a new release via repository_dispatch.
+#
+# TWO CHANNELS. The platform's Update Channel setting swaps the branch in the raw
+# URL it fetches, so each branch publishes its own single-channel catalog.json:
+#   main → built from registry.yaml's `ref`/`commit` (release tags only)
+#   dev  → built from registry.yaml's `dev_ref` (each app's dev branch)
+# One matrix leg per branch. Each leg checks out, builds, and pushes THAT branch and
+# nothing else: the branch is validated against an allow-list, HEAD is asserted to
+# match it before the build and again before the push, the push uses an explicit
+# refspec, and the build itself refuses to put dev content in the stable catalog.
+# Cross-channel leakage has to get past all five.
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'registry.yaml'
       - 'scripts/**'
@@ -19,6 +29,12 @@ on:
   schedule:
     - cron: '17 6 * * *'
   workflow_dispatch:
+    inputs:
+      channel:
+        description: Which channel(s) to rebuild
+        type: choice
+        options: [both, main, dev]
+        default: both
   repository_dispatch:
     types: [rebuild-catalog]
 
@@ -26,8 +42,58 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  # Decide which branches this run publishes. A push publishes only the branch that
+  # was pushed; everything else (cron, manual, an app repo signalling a release)
+  # refreshes both channels unless it asks for one.
+  plan:
     runs-on: ubuntu-latest
+    outputs:
+      branches: ${{ steps.pick.outputs.branches }}
+    steps:
+      - id: pick
+        # Every value here is read through env, never interpolated into the script
+        # body: client_payload comes from whoever fired the dispatch. The case
+        # statements are the allow-list — nothing else can reach a later step.
+        env:
+          EVENT: ${{ github.event_name }}
+          PUSHED: ${{ github.ref_name }}
+          WANT: ${{ github.event.inputs.channel || github.event.client_payload.channel || 'both' }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = push ]; then
+            case "$PUSHED" in
+              main|dev) printf 'branches=["%s"]\n' "$PUSHED" >> "$GITHUB_OUTPUT" ;;
+              *) echo "::error::refusing to publish from branch '$PUSHED' — only main and dev carry a catalog"; exit 1 ;;
+            esac
+          else
+            case "$WANT" in
+              main)     echo 'branches=["main"]'        >> "$GITHUB_OUTPUT" ;;
+              dev)      echo 'branches=["dev"]'         >> "$GITHUB_OUTPUT" ;;
+              both|'')  echo 'branches=["main","dev"]'  >> "$GITHUB_OUTPUT" ;;
+              *) echo "::error::unknown channel '$WANT' — use main, dev or both"; exit 1 ;;
+            esac
+          fi
+          cat "$GITHUB_OUTPUT"
+
+  build:
+    needs: plan
+    runs-on: ubuntu-latest
+    strategy:
+      # One channel failing must not stop the other from being refreshed.
+      fail-fast: false
+      matrix:
+        branch: ${{ fromJSON(needs.plan.outputs.branches) }}
+    # Serialise per branch: two runs pushing the same branch would race and one
+    # would fail on a non-fast-forward. Never cancel a leg mid-publish.
+    concurrency:
+      group: build-catalog-${{ matrix.branch }}
+      cancel-in-progress: false
+    env:
+      BRANCH: ${{ matrix.branch }}
+      # The branch and the channel are the same name by definition (channels.mjs
+      # CHANNEL_BRANCH). Setting it here means every script in this job — build and
+      # lint alike — agrees on the channel without a flag.
+      OPENMASJID_CHANNEL: ${{ matrix.branch }}
     steps:
       # Check out with a push token that can update the CLA-protected `main`. `main`
       # requires the `cla` status check, which the default github-actions[bot] token
@@ -44,7 +110,23 @@ jobs:
       # trailing comment when bumping. (APPS-006)
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ matrix.branch }}
           token: ${{ secrets.CATALOG_PUSH_TOKEN || github.token }}
+
+      # Leakage guard, before anything is built: this leg may only ever touch the
+      # one branch it was given, and that branch must be a publishing branch.
+      - name: Guard — one branch per leg
+        run: |
+          set -euo pipefail
+          case "$BRANCH" in
+            main|dev) ;;
+            *) echo "::error::'$BRANCH' is not a publishing branch"; exit 1 ;;
+          esac
+          head="$(git rev-parse --abbrev-ref HEAD)"
+          if [ "$head" != "$BRANCH" ]; then
+            echo "::error::checked out '$head' but this leg publishes '$BRANCH'"; exit 1
+          fi
+          echo "building the $BRANCH channel on branch $head"
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -60,10 +142,14 @@ jobs:
       # Gate the publish on the checks. catalog.json on main IS the production
       # artifact, so the safety gate (scripts/validate-compose.mjs) must be proven
       # working BEFORE anything is regenerated and pushed. (APPS-020)
+      # lint also reads OPENMASJID_CHANNEL: on main it fails if the committed
+      # catalog.json still holds dev content.
       - run: npm run lint
 
       - run: npm test
 
+      # Builds this branch's channel (OPENMASJID_CHANNEL above). On main the build
+      # fails outright if a dev ref or dev-tagged image would be published.
       - run: npm run build
 
       # This step auto-commits and pushes catalog.json with no human review (cron +
@@ -73,14 +159,23 @@ jobs:
       # immutable 40-char commit SHA (registry.yaml "commit:"), and require apps to
       # digest-pin their images (@sha256:…). The build prints ⚠ warnings for any
       # mutable ref or non-digest image; treat those as review signals.
+      # (The dev channel tracks moving branches on purpose — that is the channel's
+      # contract, and it is why dev must never be merged into main unreviewed.)
       - name: Commit regenerated catalog.json
         run: |
+          set -euo pipefail
+          head="$(git rev-parse --abbrev-ref HEAD)"
+          if [ "$head" != "$BRANCH" ]; then
+            echo "::error::HEAD is '$head', expected '$BRANCH' — refusing to push"; exit 1
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add catalog.json
           if git diff --staged --quiet; then
-            echo "catalog.json already up to date."
+            echo "catalog.json already up to date on $BRANCH."
           else
-            git commit -m "chore: rebuild catalog.json"
-            git push
+            git commit -m "chore: rebuild catalog.json ($BRANCH channel)"
+            # Explicit refspec, not a bare `git push`: this cannot resolve to the
+            # other channel's branch however the checkout was configured.
+            git push origin "HEAD:refs/heads/$BRANCH"
           fi

@@ -47,6 +47,24 @@ app repos (one per app) ──listed in──▶ registry.yaml ──build──
 - The platform installs an app by running its `compose` as `docker compose -p omos-<id> up -d`,
   injecting the user's answers to the app's `settings` as environment variables.
 
+## Update channels
+
+OpenMasjidOS's **Update Channel** setting swaps the branch in that URL, so this repo publishes two
+catalogs — one per branch:
+
+| Channel | URL | Built from |
+|---------|-----|------------|
+| **stable** (default) | `.../OpenMasjidAPPS/main/catalog.json` | each entry's `ref`/`commit` — release tags, digest-pinned images |
+| **dev** | `.../OpenMasjidAPPS/dev/catalog.json` | each entry's `dev_ref` — the app's `dev` branch and its `:dev` image |
+
+`registry.yaml` holds **both** addresses per app and is identical on both branches; the branch being
+built decides which column is used. An app with no `dev_ref` still appears on the dev channel — it
+falls back to its stable release. Nothing unreleased can reach the stable catalog: the build, the
+linter and CI each refuse it. Details in [`CLAUDE.md` §3b](CLAUDE.md) and
+[docs/BUILDING_AN_APP.md §8b](./docs/BUILDING_AN_APP.md).
+
+Development happens on **`dev`**; `main` moves only for a release.
+
 ## The OpenMasjidOS Fabric (optional)
 
 Apps can plug into the **OpenMasjidOS Fabric** — the platform↔app integration layer (unified
@@ -65,14 +83,15 @@ backwards-compatible, and never carries masjid data. See
    apps:
      - id: my-app
        repo: <owner>/openmasjid-my-app
-       ref: v1.0.0
+       ref: v1.0.0          # a release tag, never a branch
+       dev_ref: dev         # optional — only if your repo has a dev branch (see Update channels)
    ```
 3. Regenerate the catalog (optional locally — CI does it on push):
    ```
    npm install
    npm run build
    ```
-4. Open a PR. CI rebuilds and commits `catalog.json` automatically.
+4. Open a PR **into `dev`**. CI rebuilds and commits `catalog.json` automatically.
 
 ## `examples/`
 
@@ -93,6 +112,11 @@ from anything here.
 The **Build catalog** workflow (`.github/workflows/build-catalog.yml`) regenerates and commits
 `catalog.json` on every push to `registry.yaml`/`scripts/`, on a daily schedule, and on manual /
 `repository_dispatch` runs.
+
+It runs **one matrix leg per channel**. A push publishes only the branch that was pushed; cron,
+manual runs and `repository_dispatch` refresh **both** `main` and `dev` (pass `channel: main|dev|both`
+to narrow it). Each leg checks out its own branch, builds that channel, and pushes with an explicit
+refspec after asserting `HEAD` matches — so a dev build cannot commit to `main`, or the reverse.
 
 `main` is protected by a required **`cla`** status check. A direct push never produces that check, so
 the default `github-actions[bot]` token **cannot** push the rebuilt `catalog.json` — it's rejected

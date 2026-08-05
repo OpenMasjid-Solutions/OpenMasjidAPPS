@@ -6,6 +6,36 @@
 
 ---
 
+## 0. Branching policy — CHECK THIS BEFORE YOU TOUCH ANYTHING
+
+This repo has two long-lived branches, and they are **update channels the platform fetches**, not
+just workflow conveniences (§3b):
+
+| Branch | Role | Who may commit |
+|--------|------|----------------|
+| **`main`** | **Stable / release.** What every masjid on the default channel installs from. | Only on Hasan's explicit instruction — the words **"merge to main."** |
+| **`dev`** | **The default working branch.** All development lands here. | Anyone/any session, freely. |
+
+**Session-start check — run this first, every session:**
+
+```bash
+git branch --show-current      # must print: dev
+```
+
+If it prints anything else, switch (`git checkout dev`) before editing. If you are on `main`,
+**stop and switch** — do not commit there.
+
+**Hard rules:**
+- **Never commit to `main`.** Not a fix, not a typo, not "just the catalog".
+- **Never merge, rebase onto, cherry-pick into, or fast-forward `main` autonomously** — not even
+  when a change is obviously correct, not even to fix something broken on `main`.
+- `main` moves **only** when Hasan says **"merge to main."** Until those words, `dev` is where work
+  accumulates, however long that takes.
+- **Never force-push and never rewrite history** on either branch.
+- A release (`dev` → `main`) must carry a **main-channel** `catalog.json` — see §3b, "Releasing".
+
+---
+
 ## 1. What this repo is (and is not)
 
 **OpenMasjidAPPS is a catalog — nothing else.** It does **not** contain app source code. It is a
@@ -121,18 +151,90 @@ The build script (§5) preserves all of this — it just sources each entry from
 apps:
   - id: prayer-times-display                       # kebab-case; must equal the app's manifest id
     repo: OpenMasjid-Solutions/openmasjid-prayer-times-display
-    ref: v1.0.0                                    # a git TAG (recommended) or branch to pin to
+    ref: v1.0.0                                    # STABLE channel — the published release TAG
+    commit: <40-char SHA>                          # RECOMMENDED — the immutable SHA that tag is at
+    dev_ref: dev                                   # OPTIONAL — DEV channel; a branch (moves)
     path: ""                                       # OPTIONAL — set if manifest.yaml isn't at repo root
 ```
 
-- **Pin to a tag** (`ref: v1.0.0`) for reproducible catalogs. A branch (`ref: main`) is allowed but
-  means the catalog follows that branch (the daily CI rebuild picks up changes).
+- **Every entry carries both channel addresses.** `ref`/`commit` is the stable column, `dev_ref` the
+  development one. One schema, identical on both branches; the branch being built decides which
+  column is used. See **§3b**.
+- **`ref` must be a published release tag** (`v1.0.0`) or a 40-char SHA — **never a branch.** The
+  build rejects a branch there. A branch belongs in `dev_ref`, which is the only place a moving ref
+  is allowed.
+- **Pin `commit:`** (the immutable 40-char SHA the tag is at) for reproducible catalogs; a mutable
+  `ref` alone gets a ⚠ warning naming the SHA to copy in.
 - `id` must be unique, kebab-case, and equal to the app's `manifest.yaml` `id`.
 - To add an app: open a PR adding an entry. CI regenerates and commits `catalog.json`.
 - **Coming-soon teasers:** a separate top-level `coming_soon:` list holds apps that aren't released
   yet — inline metadata only (`id`, `name`, `tagline`, `category`), **no repo**. The build emits them
   with `comingSoon: true`; the App Store shows a "Coming soon" badge and won't install them. When one
   ships, give it a repo + tag and move it up into `apps:`.
+
+---
+
+## 3b. Channels — stable (`main`) and development (`dev`)
+
+OpenMasjidOS has an **Update Channel** setting that swaps the branch in the one URL it fetches:
+
+```
+https://raw.githubusercontent.com/OpenMasjid-Solutions/OpenMasjidAPPS/<branch>/catalog.json
+                                                                      ^^^^^^^^
+                                                     main = stable          dev = development
+```
+
+So **each branch publishes its own single-channel `catalog.json`**. The file's shape is identical on
+both — §2 is untouched, and **no channel field is added to `catalog.json`**; the branch it is fetched
+from is what identifies the channel.
+
+| | stable | development |
+|---|---|---|
+| Branch here | `main` | `dev` |
+| Registry column | `ref` + `commit` | `dev_ref` |
+| Ref kind | release tag / SHA — **immutable** | a branch — **moves on purpose** |
+| App's image | release tag, `@sha256` digest-pinned | `:dev` |
+| Who installs it | every masjid | testers who opted in |
+
+**Building.** `npm run build` takes `--channel main|dev`, defaults from `OPENMASJID_CHANNEL`, then
+from the current git branch (`dev`/`dev/*` → dev, anything else → main). Both workflows state it
+explicitly, so the git fallback only affects local runs.
+
+```bash
+npm run build -- --channel dev      # or: OPENMASJID_CHANNEL=dev npm run build
+```
+
+**To ship an app on the dev channel**, that app's repo must:
+1. have a **`dev` branch**,
+2. **publish a dev-tagged image** from it (`ghcr.io/<owner>/<repo>:dev`),
+3. **reference that tag in its dev-branch `docker-compose.yml`**, and
+4. carry a **`dev_ref`** in `registry.yaml`.
+
+An app missing any of that still appears on the dev channel — it **falls back to its stable
+release**, with a build notice (a declared-but-missing `dev_ref` gets a ⚠ warning). The dev channel
+always lists every app.
+
+**The one rule that must not break: no dev content on `main`.** `main/catalog.json` is production —
+the platform fetches that raw file with no build, deploy or staging step in between, so anything
+landing there is live to every masjid instantly. Three gates enforce it:
+
+- **the build** fails on a dev ref or a dev-tagged image in the main channel;
+- **`npm run lint`** fails when the *committed* `catalog.json` carries dev images and the channel is
+  stable — this runs on pull requests, using the **base** branch as the channel, so a `dev` → `main`
+  PR is red until its catalog is rebuilt for main;
+- **CI** builds one channel per matrix leg and pushes with an explicit refspec to the branch it
+  checked out, having asserted `HEAD` matches.
+
+**Releasing (`dev` → `main`)** — only on Hasan's explicit "merge to main" (§0). `catalog.json` will
+conflict, because the two branches legitimately hold different builds of it. Resolve it by
+**rebuilding, not by picking a side**:
+
+```bash
+git checkout -b release/<date> dev
+npm run build -- --channel main     # regenerate from the stable column
+npm run check                       # lint proves no dev content remains
+# open the PR into main; Hasan merges
+```
 
 ---
 
@@ -195,18 +297,24 @@ apps:
 
 ## 5. `catalog.json` — generated, never hand-edited
 
-Built by `scripts/build-catalog.mjs` from `registry.yaml`. For each entry the script:
-1. fetches `manifest.yaml` and `docker-compose.yml` from the app repo at the pinned `ref`,
-2. validates `id` (kebab), required fields, category, and scans the compose for disallowed
+Built by `scripts/build-catalog.mjs` from `registry.yaml`. **One channel per branch (§3b)** — the
+script builds the channel it is told to and refuses to mix them. For each entry it:
+1. picks that channel's ref (`ref`/`commit` on main, `dev_ref` on dev) and resolves a mutable ref to
+   the commit SHA it currently points at, so the build always fetches immutable content,
+2. fetches `manifest.yaml` and `docker-compose.yml` from the app repo at that ref,
+3. validates `id` (kebab), required fields, category, and scans the compose for disallowed
    dangerous directives (§4C),
-3. rewrites `icon`/`screenshots` to absolute raw URLs in **that app's repo**,
-4. embeds the compose text as `compose`,
-5. writes `{ "apps": [ … ] }` to `catalog.json`.
+4. **fails if a dev ref or dev-tagged image would land in the stable catalog**,
+5. rewrites `icon`/`screenshots` to absolute raw URLs in **that app's repo**,
+6. embeds the compose text as `compose`,
+7. writes `{ "apps": [ … ] }` to `catalog.json`.
 
-Run locally: `npm install && npm run build` (needs network — it fetches from GitHub). CI
-(`.github/workflows/build-catalog.yml`) rebuilds and commits `catalog.json` on registry/tooling
-changes, on a daily schedule, on manual dispatch, and on `repository_dispatch` (`rebuild-catalog`)
-so app repos can trigger a refresh when they release.
+Run locally: `npm install && npm run build [-- --channel main|dev]` (needs network — it fetches from
+GitHub). CI (`.github/workflows/build-catalog.yml`) rebuilds and commits `catalog.json` on
+registry/tooling changes, on a daily schedule, on manual dispatch, and on `repository_dispatch`
+(`rebuild-catalog`) so app repos can trigger a refresh when they release. A push publishes only the
+branch that was pushed; cron/dispatch refresh **both** channels as separate matrix legs, each of
+which can only commit to the branch it checked out.
 
 ---
 
@@ -393,36 +501,55 @@ OpenMasjidAPPS/
 ├── CLAUDE.md                      # this file
 ├── README.md
 ├── LICENSE                        # AGPL-3.0 (catalog tooling); apps keep their own license
-├── registry.yaml                  # the list of app repos to aggregate (hand-edited)
-├── catalog.json                   # GENERATED — the file the platform fetches
-├── package.json                   # dev dep: yaml; "build" → build-catalog
+├── registry.yaml                  # both channels' app list (hand-edited); same on main and dev
+├── catalog.json                   # GENERATED — the file the platform fetches, one channel per branch
+├── package.json                   # dep: yaml; build / test / lint / check
 ├── scripts/build-catalog.mjs      # registry → catalog.json (fetches app repos)
+├── scripts/channels.mjs           # the channel model: ref rules + the dev-artifact gate (§3b)
+├── scripts/registry-validate.mjs  # registry + manifest validation (unit-testable)
+├── scripts/validate-compose.mjs   # the compose safety gate — lockstep with the platform (§10)
+├── scripts/lint.mjs               # syntax, SPDX headers, platform contract, channel hygiene
+├── scripts/__tests__/             # node:test suites for the above
 ├── docs/BUILDING_AN_APP.md        # hands-on guide for building a compatible app repo
 ├── docs/DESIGN.md                 # the full UI/UX design language every app should match
 ├── examples/                      # illustrative scaffolding — NOT catalogued, built, tested or
 │   ├── prayer-times-display/      #   maintained. Out of scope for work here; see §1 and §15.
 │   └── announcements-board/
-└── .github/workflows/build-catalog.yml
+└── .github/workflows/
+    ├── build-catalog.yml          # publishes each branch's channel (matrix: main, dev)
+    ├── checks.yml                 # PR gate; channel = the PR's BASE branch
+    └── cla.yml
 ```
 
 ## 13. Build & run commands
 ```bash
-npm install && npm run build   # regenerate catalog.json from registry.yaml (needs network)
+npm install                        # once
+npm run build                      # regenerate catalog.json for THIS branch's channel
+npm run build -- --channel main    # or state it explicitly (main | dev)
+npm run check                      # lint + tests — run before every commit
 ```
 
 ---
 
 ## 14. Definition of done
 - **A catalog change** is done when: `registry.yaml` is valid; `npm run build` regenerates a valid
-  `catalog.json` whose **shape matches §2** (the platform is unaffected); and CI is green.
+  `catalog.json` whose **shape matches §2** (the platform is unaffected); `npm run check` passes; the
+  work is on **`dev`** (§0); and CI is green.
 - **An app** (in its own repo) is done when it meets every requirement in §4 and **installs and
   opens cleanly on a real OpenMasjidOS instance** with only the settings collected at install time.
   This bar is assessed in the app's repo. It is **not** a bar `examples/` has to meet, and a catalog
   change is never blocked on it.
 
 ## 15. Working agreement for Claude (in this repo)
+- **Check the branch first, every session: `git branch --show-current` must print `dev`** (§0).
+  Never commit to `main`; never merge/rebase/cherry-pick into it without the words
+  "merge to main."
 - Read this file first, every session. **§2 (platform contract) is a hard constraint** — never
-  change the shape of `catalog.json` here; that would break the platform.
+  change the shape of `catalog.json` here; that would break the platform. In particular, **do not
+  add a channel field to `catalog.json`** — the branch it is fetched from identifies the channel
+  (§3b).
+- **Never let dev content reach `main`** (§3b). If `catalog.json` conflicts in a `dev` → `main`
+  merge, resolve it by rebuilding with `--channel main`, never by choosing a side.
 - This repo is **catalog-only**. Don't add real app source here. New apps go in their own repos and
   are added to `registry.yaml`.
 - **Do not modify app source in this repo — that includes `examples/`.** Work here is limited to

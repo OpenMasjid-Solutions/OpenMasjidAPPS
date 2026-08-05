@@ -108,7 +108,7 @@ jobs:
       # from, so a moved tag on any action used here would be a direct supply-chain
       # route into production. Same convention as cla.yml. Keep the version in the
       # trailing comment when bumping. (APPS-006)
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ matrix.branch }}
           token: ${{ secrets.CATALOG_PUSH_TOKEN || github.token }}

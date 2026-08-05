@@ -40,6 +40,17 @@ If it prints anything else, switch (`git checkout dev`) before editing. If you a
   at `dev` for exactly this reason (`.github/dependabot.yml`), so a bump never needs a release to
   land.
 
+**The reporting rhythm (standing instruction, 2026-08-05).** All development happens on `dev`, and
+work is pushed there as it is finished — don't sit on it waiting for permission:
+
+1. Do the work on `dev` and **push it to `dev`**.
+2. **End that reply by asking whether to push it to `main`.** Every time a prompt puts something new
+   on `dev`, close with the question — a short line, not a paragraph.
+3. **Keep going on `dev` until Hasan answers.** The question is a standing offer, not a gate: further
+   prompts land more commits on `dev` and each one asks again. Nothing waits on the answer.
+4. When he says **"push to main"** or **"merge to main"**, do the release in §3b — the stable-channel
+   rebuild, the PR, and the GitHub release. Both trigger phrases mean the same thing.
+
 ---
 
 ## 1. What this repo is (and is not)

@@ -4,17 +4,22 @@ name: Checks
 
 # Run the catalog's own checks on every pull request, BEFORE anything is merged.
 #
-# build-catalog.yml also runs lint and tests, but it only triggers on push to
-# `main` (plus cron/dispatch) — and on `main` the regenerated catalog.json is
-# published immediately, because the platform fetches that raw file with no
-# deploy gate. Catching a problem there means catching it after it is live.
+# build-catalog.yml also runs lint and tests, but it only triggers on push to a
+# publishing branch (plus cron/dispatch) — and on `main` the regenerated
+# catalog.json is published immediately, because the platform fetches that raw file
+# with no deploy gate. Catching a problem there means catching it after it is live.
 # This workflow moves the gate in front of the merge.
+#
+# The channel comes from the PR's BASE branch, which is what makes this the release
+# gate: a dev → main PR is linted as `main`, so if it still carries dev refs or
+# dev-tagged images in catalog.json, lint fails and the PR cannot go green. A PR
+# into `dev` is linted as `dev`, where that content is expected.
 #
 # Deliberately minimal permissions: it reads the code and reports a status. It
 # never needs a token that can write to the repo or publish anything.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 
 permissions:
@@ -27,6 +32,11 @@ concurrency:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    env:
+      # base_ref is the branch being merged INTO ('' for workflow_dispatch). The
+      # expression always yields a valid channel, so a script can never be handed a
+      # branch name it does not recognise.
+      OPENMASJID_CHANNEL: ${{ (github.base_ref == 'dev' && 'dev') || 'main' }}
     steps:
       # Pinned to a SHA like every other action here — see build-catalog.yml.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

@@ -30,9 +30,26 @@ If it prints anything else, switch (`git checkout dev`) before editing. If you a
 - **Never merge, rebase onto, cherry-pick into, or fast-forward `main` autonomously** — not even
   when a change is obviously correct, not even to fix something broken on `main`.
 - `main` moves **only** when Hasan says **"merge to main."** Until those words, `dev` is where work
-  accumulates, however long that takes.
+  accumulates, however long that takes. The phrase is the trigger — treat it as authorisation only
+  when he is *giving* the instruction, not when he is restating the rule.
 - **Never force-push and never rewrite history** on either branch.
 - A release (`dev` → `main`) must carry a **main-channel** `catalog.json` — see §3b, "Releasing".
+- **"Merge to main" means merge *and* publish a GitHub release** — tag the merge commit and write
+  release notes. Both halves, every time; see §3b.
+- Everything else — including routine dependency bumps — merges into `dev`. Dependabot is pointed
+  at `dev` for exactly this reason (`.github/dependabot.yml`), so a bump never needs a release to
+  land.
+
+**The reporting rhythm (standing instruction, 2026-08-05).** All development happens on `dev`, and
+work is pushed there as it is finished — don't sit on it waiting for permission:
+
+1. Do the work on `dev` and **push it to `dev`**.
+2. **End that reply by asking whether to push it to `main`.** Every time a prompt puts something new
+   on `dev`, close with the question — a short line, not a paragraph.
+3. **Keep going on `dev` until Hasan answers.** The question is a standing offer, not a gate: further
+   prompts land more commits on `dev` and each one asks again. Nothing waits on the answer.
+4. When he says **"push to main"** or **"merge to main"**, do the release in §3b — the stable-channel
+   rebuild, the PR, and the GitHub release. Both trigger phrases mean the same thing.
 
 ---
 
@@ -231,10 +248,30 @@ conflict, because the two branches legitimately hold different builds of it. Res
 
 ```bash
 git checkout -b release/<date> dev
-npm run build -- --channel main     # regenerate from the stable column
-npm run check                       # lint proves no dev content remains
-# open the PR into main; Hasan merges
+npm run build -- --channel main                    # regenerate from the stable column
+OPENMASJID_CHANNEL=main npm run check              # name the channel — see the note below
+gh pr create --base main --head release/<date>     # Hasan merges; `cla` must pass
 ```
+
+> **Name the channel in that check.** A bare `npm run check` on a `release/*` branch resolves the
+> channel from git, and `lint` only enforces the no-dev-content rule when the channel was stated
+> outright or the branch is literally `main` (`scripts/lint.mjs`). So on a release branch the bare
+> command does **not** prove the catalog is clean — pass `OPENMASJID_CHANNEL=main` (or
+> `npm run lint -- --channel main`) so it does. The PR into `main` is gated correctly either way,
+> because `checks.yml` sets the channel from the PR's base branch; this just moves the discovery
+> earlier.
+
+**Then publish the GitHub release** — a "merge to main" is not finished without it (§0):
+
+```bash
+git fetch origin && git tag -a vX.Y.Z <merge-commit> -m "…" && git push origin vX.Y.Z
+gh release create vX.Y.Z --title "…" --notes-file <notes>
+```
+
+Version the **catalog repo**, not the apps — each app carries its own version in its own manifest,
+and the platform never reads a version from this repo. Notes should say what changed for a masjid
+(new or delisted apps, channel behaviour) and what changed for an app author (contract changes),
+and state plainly whether `catalog.json` itself moved — often it doesn't, which is worth saying.
 
 ---
 

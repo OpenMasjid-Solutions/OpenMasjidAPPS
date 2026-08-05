@@ -4,7 +4,8 @@
  * Builds catalog.json by aggregating the app repositories listed in registry.yaml.
  *
  * Each app lives in its OWN repository. For every registry entry this script:
- *   1. fetches that repo's manifest.yaml and docker-compose.yml (at the pinned ref),
+ *   1. fetches that repo's manifest.yaml and docker-compose.yml (at the pinned ref
+ *      for the channel being built — see below),
  *   2. validates the id / required fields / category and scans the compose for
  *      disallowed (dangerous) directives,
  *   3. rewrites icon/screenshots to absolute raw URLs in that repo,
@@ -13,12 +14,29 @@
  * and shape OpenMasjidOS fetches. The platform contract is unchanged; only the
  * SOURCE of each entry moved from local folders to external repos. See CLAUDE.md.
  *
- * Run: npm install && node scripts/build-catalog.mjs   (needs network access)
+ * CHANNELS. The platform's Update Channel setting swaps the branch in the raw URL
+ * it fetches, so each branch of this repo publishes its own catalog.json:
+ * `main` = stable, `dev` = development. registry.yaml holds both addresses per app
+ * (`ref` + `dev_ref`) with one schema on both branches; this script builds one
+ * channel at a time and refuses to put development content in the stable catalog.
+ *
+ * Run: npm install && node scripts/build-catalog.mjs [--channel main|dev]
+ *      (needs network access; the channel defaults from the current git branch)
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { parse } from 'yaml';
 import { validateCompose } from './validate-compose.mjs';
 import { validateSource, rawBase, validateManifestFields } from './registry-validate.mjs';
+import {
+  resolveChannel,
+  isStableRef,
+  isDevImageRef,
+  findDevArtifacts,
+  imageRefsIn,
+  CHANNEL_BRANCH,
+  COMMIT_SHA_RE,
+} from './channels.mjs';
 
 const REGISTRY = 'registry.yaml';
 
@@ -37,7 +55,8 @@ const GRANT_RE = /^[a-z0-9][a-z0-9-]{0,79}\/[a-z0-9][a-z0-9-]{0,39}$/;
 // owner (or whoever compromises the repo) can move them to backdoored content and
 // the unattended daily rebuild (see .github/workflows/build-catalog.yml) will
 // republish it under a previously-reviewed ref. A SHA cannot be moved.
-const COMMIT_SHA_RE = /^[0-9a-f]{40}$/;
+// Defined once in channels.mjs — the channel rules test the same shape, and two
+// copies of this regex would eventually disagree.
 
 // A digest-pinned image reference contains @sha256:<64 hex>. Without it, a moved
 // image tag can repoint a "pinned" version string to a different (backdoored)
@@ -60,6 +79,38 @@ function warn(msg) {
   warnings++;
   console.warn(`⚠ ${msg}`);
 }
+// Expected-and-worth-saying — a channel fallback, or a dev tag on the dev channel.
+// Not a warning: things that are working as designed must not train a maintainer
+// to ignore the ⚠ lines that aren't.
+function notice(msg) {
+  console.log(`· ${msg}`);
+}
+
+// Which channel are we building? --channel wins, then OPENMASJID_CHANNEL, then the
+// current git branch (see channels.mjs). Both workflows state it explicitly; the
+// git fallback is for local runs.
+function currentGitBranch() {
+  try {
+    return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return null; // no git, or a bare/detached checkout — fall through to the default
+  }
+}
+
+let channel, channelSource;
+try {
+  ({ channel, source: channelSource } = resolveChannel({
+    argv: process.argv.slice(2),
+    env: process.env,
+    branch: currentGitBranch(),
+  }));
+} catch (e) {
+  fail(e.message);
+}
+const isDevChannel = channel === 'dev';
+console.log(
+  `▶ channel: ${channel} (from ${channelSource}) — this catalog.json belongs on the "${CHANNEL_BRANCH[channel]}" branch.`,
+);
 
 // Validate + normalise a manifest `fabric:` block (the app-to-app broker). Returns
 // { provides?: [{capability}], consumes?: string[] } — the exact shape the platform
@@ -140,7 +191,15 @@ const MAX_FETCH_BYTES = 2 * 1024 * 1024; // 2 MiB
 // (APPS-007)
 async function fetchText(url) {
   const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    // Carry the status: the dev channel treats a definitive 404 (branch or file
+    // simply not there) as "fall back to the stable release", and anything else —
+    // a timeout, a 5xx — as a real failure. A transient error must NOT silently
+    // downgrade an app to the other channel.
+    const err = new Error(`HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
 
   const declared = Number(res.headers.get('content-length'));
   if (Number.isFinite(declared) && declared > MAX_FETCH_BYTES) {
@@ -182,6 +241,55 @@ async function resolveRefToSha(repo, ref) {
 // everything untrusted that reaches it live in ./registry-validate.mjs so they can
 // be unit-tested — importing this file runs the whole build.
 
+/**
+ * Resolve one declared ref and fetch the two files the catalog needs from it.
+ *
+ * Returns null — rather than failing the build — when the ref is definitively
+ * absent (HTTP 404) and `allowMissing` is set. That is how the dev channel copes
+ * with an app that hasn't cut its `dev` branch yet: it falls back to the stable
+ * release instead of taking the whole dev catalog down with it.
+ *
+ * `mutableIsExpected` suppresses the "pin a commit SHA" warning: on the dev
+ * channel a moving branch is the entire point, so warning about it every build
+ * would be noise. The ref is still resolved to the SHA it currently points at, so
+ * the catalog references immutable content for that build either way.
+ */
+async function loadFrom(id, repo, path, declared, { allowMissing = false, mutableIsExpected = false } = {}) {
+  let fetchRef = String(declared);
+  let immutable = COMMIT_SHA_RE.test(fetchRef);
+
+  if (!immutable) {
+    const current = await resolveRefToSha(repo, fetchRef);
+    if (current) {
+      if (mutableIsExpected) {
+        notice(`${id}: dev ref "${fetchRef}" is at ${current} for this build.`);
+      } else {
+        warn(`${id}: pinned to mutable ref "${fetchRef}" — resolved to ${current} for this build. Add "commit: ${current}" to registry.yaml to pin it permanently (a tag/branch can be moved to backdoored content under a previously-reviewed ref).`);
+      }
+      fetchRef = current;
+      immutable = true;
+    } else if (!mutableIsExpected) {
+      warn(`${id}: pinned to mutable ref "${fetchRef}" and could not resolve it to a commit SHA (offline/rate-limited); catalog.json will reference the mutable ref. Pin a "commit:" SHA in registry.yaml.`);
+    }
+  }
+
+  const base = rawBase(repo, fetchRef, path);
+  let manifestText, composeText;
+  try {
+    manifestText = await fetchText(base + 'manifest.yaml');
+  } catch (e) {
+    if (allowMissing && e.status === 404) return null;
+    fail(`${id}: could not fetch manifest.yaml from ${repo}@${fetchRef} (${e.message})`);
+  }
+  try {
+    composeText = await fetchText(base + 'docker-compose.yml');
+  } catch (e) {
+    if (allowMissing && e.status === 404) return null;
+    fail(`${id}: could not fetch docker-compose.yml from ${repo}@${fetchRef} (${e.message})`);
+  }
+  return { declared: String(declared), fetchRef, immutable, base, manifestText, composeText };
+}
+
 let registry = { apps: [] };
 if (existsSync(REGISTRY)) {
   try {
@@ -196,9 +304,11 @@ const apps = [];
 const seen = new Set();
 
 for (const entry of entries) {
-  // `commit`/`sha` (an immutable 40-hex SHA) takes precedence over `ref` (a
-  // mutable tag/branch). `ref` may itself be a 40-hex SHA — also immutable.
-  const { id, repo, ref = 'main', path, commit, sha } = entry || {};
+  // Two channel columns, one schema (CLAUDE.md "Channels"):
+  //   stable  — `ref` (the published release TAG) + `commit`/`sha` (the immutable
+  //             40-hex SHA that tag was cut at; it is what actually gets fetched).
+  //   dev     — `dev_ref` (a branch, deliberately moving; may also be a SHA).
+  const { id, repo, ref, path, commit, sha, dev_ref: devRef } = entry || {};
   if (!id || !repo) fail(`registry entry is missing "id" or "repo": ${JSON.stringify(entry)}`);
   if (!APP_ID_RE.test(id)) fail(`${id}: invalid id — use kebab-case (a-z, 0-9, -), max 80 chars`);
   if (seen.has(id)) fail(`duplicate id in registry: ${id}`);
@@ -209,45 +319,74 @@ for (const entry of entries) {
   // different repository while `repo`/`commit`, the review diff and the build log
   // all still named the pinned one — defeating the only integrity control the
   // unattended daily rebuild has. See registry-validate.mjs. (APPS-001)
-  const sourceProblems = validateSource({ repo, ref, path });
+  const sourceProblems = validateSource({ repo, ref, path, dev_ref: devRef });
   if (sourceProblems.length) {
     fail(`${id}: unsafe registry entry:\n   - ${sourceProblems.join('\n   - ')}`);
   }
 
-  // Decide what to fetch at. An explicit commit/sha pin wins; otherwise the ref.
   const pin = commit ?? sha;
   if (pin != null && !COMMIT_SHA_RE.test(String(pin))) {
     fail(`${id}: "commit"/"sha" must be a full 40-char lowercase hex commit SHA (got "${pin}")`);
   }
-  let fetchRef = pin != null ? String(pin) : String(ref);
-  let immutable = COMMIT_SHA_RE.test(fetchRef);
 
-  if (!immutable) {
-    // Mutable pin: resolve it to the commit SHA it currently points at and fetch
-    // THAT, so catalog.json always references an immutable source that can't change
-    // under a moving branch/tag. Still warn so a permanent `commit:` pin is added.
-    const current = await resolveRefToSha(repo, fetchRef);
-    if (current) {
-      warn(`${id}: pinned to mutable ref "${fetchRef}" — resolved to ${current} for this build. Add "commit: ${current}" to registry.yaml to pin it permanently (a tag/branch can be moved to backdoored content under a previously-reviewed ref).`);
-      fetchRef = current;
-      immutable = true;
-    } else {
-      warn(`${id}: pinned to mutable ref "${fetchRef}" and could not resolve it to a commit SHA (offline/rate-limited); catalog.json will reference the mutable ref. Pin a "commit:" SHA in registry.yaml.`);
+  // The stable column is validated on BOTH branches — registry.yaml is one file
+  // with one schema, so a bad release pin is caught by whichever channel builds
+  // first. `ref` must be a release tag (or a SHA): a branch name here would make
+  // main's catalog silently follow a moving branch, which is what `dev_ref` is for.
+  if (ref == null && pin == null) {
+    fail(`${id}: needs a "ref" (the published release tag) or an immutable "commit" SHA`);
+  }
+  if (ref != null && !isStableRef(String(ref))) {
+    fail(
+      `${id}: "ref" is the STABLE channel and must be a published release tag (e.g. v1.2.3) or a ` +
+        `40-char commit SHA — got "${ref}". To track a branch, put it in "dev_ref" (dev channel only).`,
+    );
+  }
+
+  // Pick this channel's address. On dev, `dev_ref` wins over the stable pin —
+  // otherwise the dev channel would just republish stable.
+  const stableDeclared = pin != null ? String(pin) : String(ref);
+  let src = null;
+  if (isDevChannel && devRef) {
+    src = await loadFrom(id, repo, path, String(devRef), { allowMissing: true, mutableIsExpected: true });
+    if (!src) {
+      // The dev branch isn't there (yet). Fall back rather than take the whole dev
+      // catalog down for one app — but say so loudly, because this app is NOT
+      // shipping dev content and someone expected it to.
+      warn(
+        `${id}: dev_ref "${devRef}" does not exist in ${repo} (HTTP 404) — the dev catalog is falling ` +
+          `back to the stable release "${stableDeclared}". Create that branch in the app repo, or drop dev_ref.`,
+      );
     }
   }
-
-  const base = rawBase(repo, fetchRef, path);
-
-  let manifestText, composeText;
-  try {
-    manifestText = await fetchText(base + 'manifest.yaml');
-  } catch (e) {
-    fail(`${id}: could not fetch manifest.yaml from ${repo}@${fetchRef} (${e.message})`);
+  let usedFallback = false;
+  if (!src) {
+    if (isDevChannel) {
+      usedFallback = true;
+      if (!devRef) notice(`${id}: no dev_ref — the dev catalog lists the stable release "${stableDeclared}".`);
+    }
+    src = await loadFrom(id, repo, path, stableDeclared);
   }
-  try {
-    composeText = await fetchText(base + 'docker-compose.yml');
-  } catch (e) {
-    fail(`${id}: could not fetch docker-compose.yml from ${repo}@${fetchRef} (${e.message})`);
+  const { fetchRef, immutable, base, manifestText, composeText } = src;
+
+  // THE LEAKAGE GATE. main/catalog.json is production: the platform fetches that
+  // raw file with no deploy step in between, so a dev ref or a dev-tagged image
+  // that lands here is immediately live to every masjid on the stable channel.
+  // Fail the build rather than publish it.
+  if (!isDevChannel) {
+    const devArtifacts = findDevArtifacts({ ref: src.declared, composeText });
+    if (devArtifacts.length) {
+      fail(
+        `${id}: development content cannot be published on the stable channel:\n   - ` +
+          devArtifacts.join('\n   - ') +
+          `\n   The stable catalog is built from "ref"/"commit" and release-tagged images only; dev ` +
+          `content belongs on the dev branch (CLAUDE.md "Channels").`,
+      );
+    }
+  } else if (devRef && !usedFallback && !imageRefsIn(composeText).some(isDevImageRef)) {
+    // Declared a dev branch but it still points at a release image — usually the
+    // dev branch's compose was never switched to the :dev tag.
+    notice(`${id}: dev_ref "${devRef}" resolved, but its compose references no dev-tagged image — the dev channel will install the release image.`);
   }
 
   let m;
@@ -307,9 +446,15 @@ for (const entry of entries) {
   for (let mm; (mm = IMAGE_LINE_RE.exec(composeText)); ) {
     const imageRef = mm[1];
     if (imageRef.includes('${')) continue; // env-substituted at install — can't judge here
-    if (!IMAGE_DIGEST_RE.test(imageRef)) {
-      warn(`${id}: image "${imageRef}" is not digest-pinned — a moved tag could repoint it to a backdoored image. Pin it as "<image>:<tag>@sha256:<digest>" (see docs/BUILDING_AN_APP.md → Security requirements).`);
+    if (IMAGE_DIGEST_RE.test(imageRef)) continue;
+    if (isDevChannel && isDevImageRef(imageRef)) {
+      // A dev tag is a moving tag by definition — that is what the dev channel is.
+      // Warning on it every build would bury the warnings that do matter. It stays
+      // a hard failure on the stable channel (the leakage gate above).
+      notice(`${id}: image "${imageRef}" tracks a moving dev tag — expected on the dev channel.`);
+      continue;
     }
+    warn(`${id}: image "${imageRef}" is not digest-pinned — a moved tag could repoint it to a backdoored image. Pin it as "<image>:<tag>@sha256:<digest>" (see docs/BUILDING_AN_APP.md → Security requirements).`);
   }
 
   apps.push({
@@ -357,7 +502,8 @@ for (const entry of entries) {
     alerts,
     compose: composeText,
   });
-  console.log(`✓ ${id} ← ${repo}@${fetchRef}${immutable ? '' : ' (mutable ref)'}`);
+  const via = isDevChannel ? (usedFallback ? ' [stable fallback]' : ' [dev]') : '';
+  console.log(`✓ ${id} ← ${repo}@${fetchRef}${immutable ? '' : ' (mutable ref)'}${via}`);
 }
 
 // Coming-soon teasers — metadata only, no repo/compose. The platform renders
@@ -379,8 +525,11 @@ for (const entry of comingSoon) {
 apps.sort((a, b) => a.name.localeCompare(b.name));
 // Drop undefined keys for a tidy catalog.
 const clean = apps.map((a) => JSON.parse(JSON.stringify(a)));
+// Single-channel per branch, and the envelope shape is untouched: no channel key is
+// added here. catalog.json is the platform's contract (CLAUDE.md §2) and the branch
+// it is fetched from is what identifies the channel.
 writeFileSync('catalog.json', JSON.stringify({ apps: clean }, null, 2) + '\n');
-console.log(`✓ Built catalog.json with ${clean.length} app(s).`);
+console.log(`✓ Built catalog.json with ${clean.length} app(s) for the ${channel} channel.`);
 if (warnings > 0) {
   // Surface, but don't fail — these are supply-chain hardening nudges, not errors.
   console.warn(`⚠ ${warnings} security warning(s) above. Immutable commit-SHA pins (registry.yaml) and digest-pinned images are the integrity controls for the unattended daily rebuild.`);

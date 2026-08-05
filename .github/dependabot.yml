@@ -12,10 +12,18 @@
 #   - npm: the single runtime dependency (yaml)
 # It does NOT watch examples/ — that is illustrative scaffolding, not software
 # this repo maintains (CLAUDE.md §1), and its workflows never run from here.
+#
+# `target-branch: dev` on both ecosystems. Without it Dependabot opens against the
+# default branch, `main` — which is the stable release channel and only moves for a
+# release (CLAUDE.md §0), so every routine bump would have needed a release to land.
+# Pointing it at `dev` puts these PRs on the same path as all other work: they merge
+# into `dev` and reach `main` with the next release. Note this also means Dependabot
+# reads the manifests from `dev` and stops proposing updates against `main` directly.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
+    target-branch: dev
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
@@ -25,6 +33,7 @@ updates:
 
   - package-ecosystem: npm
     directory: /
+    target-branch: dev
     schedule:
       interval: weekly
     open-pull-requests-limit: 5

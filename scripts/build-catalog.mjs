@@ -299,6 +299,82 @@ async function loadFrom(id, repo, path, declared, { allowMissing = false, mutabl
   return { declared: String(declared), fetchRef, immutable, base, manifestText, composeText };
 }
 
+/**
+ * Split an image reference into the pieces a registry API needs.
+ *   ghcr.io/o/r:1.0.0        → { host: 'ghcr.io', name: 'o/r', reference: '1.0.0' }
+ *   postgres:16-alpine       → { host: 'registry-1.docker.io', name: 'library/postgres', … }
+ *   ghcr.io/o/r@sha256:…     → reference is the digest
+ */
+function parseImageRef(ref) {
+  const [beforeDigest, digest] = String(ref).split('@');
+  const parts = beforeDigest.split('/');
+  let host = 'registry-1.docker.io';
+  if (parts.length > 1 && (parts[0].includes('.') || parts[0].includes(':') || parts[0] === 'localhost')) {
+    host = parts.shift();
+  }
+  let name = parts.join('/');
+  let reference = 'latest';
+  const colon = name.lastIndexOf(':');
+  if (colon !== -1 && !name.slice(colon + 1).includes('/')) {
+    reference = name.slice(colon + 1);
+    name = name.slice(0, colon);
+  }
+  if (host === 'registry-1.docker.io' && !name.includes('/')) name = `library/${name}`;
+  if (digest) reference = `sha256:${digest.replace(/^sha256:/, '')}`;
+  return { host, name, reference };
+}
+
+/**
+ * Does this image actually exist in its registry?
+ *
+ * Returns true / false / null, where **null means "could not tell"** — a timeout,
+ * a rate limit, a registry that needs credentials. Only a definitive 404 counts as
+ * false, so a flaky network can never demote an app.
+ *
+ * This exists because the dev channel now pins an EXACT tag. An app that bumps its
+ * manifest before its CI publishes the matching image would otherwise have that
+ * missing tag published to the catalog, and a masjid on the dev channel would get a
+ * pull failure at install. Caught live on 2026-08-05: kiosk's dev entry pinned
+ * 0.11.0-dev.1 minutes before that image existed.
+ */
+async function imageExists(ref) {
+  const { host, name, reference } = parseImageRef(ref);
+  const url = `https://${host}/v2/${name}/manifests/${encodeURIComponent(reference)}`;
+  const accept = [
+    'application/vnd.oci.image.index.v1+json',
+    'application/vnd.oci.image.manifest.v1+json',
+    'application/vnd.docker.distribution.manifest.list.v2+json',
+    'application/vnd.docker.distribution.manifest.v2+json',
+  ].join(', ');
+  try {
+    let res = await fetch(url, { method: 'HEAD', headers: { Accept: accept }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    if (res.status === 401) {
+      // Standard OCI token flow: the challenge tells us where to get a token.
+      const challenge = res.headers.get('www-authenticate') || '';
+      const realm = /realm="([^"]+)"/.exec(challenge)?.[1];
+      const service = /service="([^"]+)"/.exec(challenge)?.[1];
+      if (!realm) return null;
+      const tokenUrl = new URL(realm);
+      if (service) tokenUrl.searchParams.set('service', service);
+      tokenUrl.searchParams.set('scope', `repository:${name}:pull`);
+      const tok = await fetch(tokenUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+      if (!tok.ok) return null;
+      const token = (await tok.json()).token || (await Promise.resolve(null));
+      if (!token) return null;
+      res = await fetch(url, {
+        method: 'HEAD',
+        headers: { Accept: accept, Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+    }
+    if (res.status === 404) return false;
+    if (res.ok) return true;
+    return null; // 429, 5xx, anything else — unknown, not absent
+  } catch {
+    return null;
+  }
+}
+
 // The version a manifest declares, without validating the rest of it (that happens
 // later, on whichever source we end up publishing). Returns null if unreadable.
 function peekVersion(manifestText) {
@@ -417,6 +493,20 @@ for (const entry of entries) {
         // publishes prerelease-versioned dev images** — the fallback is a migration
         // aid, not the destination.
         const problems = devEntryProblems({ version: devVersion, composeText: src.composeText });
+        // Pinning an exact tag is only an improvement if the tag is there. An app that
+        // bumps its manifest before CI publishes the image would otherwise ship a
+        // catalog entry a masjid cannot install. Only a definitive 404 demotes it.
+        if (!problems.length) {
+          for (const imageRef of imageRefsIn(src.composeText)) {
+            if (imageRef.includes('${')) continue;
+            if ((await imageExists(imageRef)) === false) {
+              problems.push(
+                `image "${imageRef}" does not exist in its registry yet — publish the image before the ` +
+                  `entry, or a masjid on the dev channel gets a pull failure at install`,
+              );
+            }
+          }
+        }
         if (problems.length) {
           warn(
             `${id}: dev entry does not meet the dev channel contract, so the dev catalog is serving the ` +

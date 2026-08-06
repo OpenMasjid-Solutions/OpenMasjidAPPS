@@ -80,7 +80,7 @@ catalogs — one per branch:
 | Channel | URL | Built from |
 |---------|-----|------------|
 | **stable** (default) | `.../OpenMasjidAPPS/main/catalog.json` | each entry's `ref`/`commit` — release tags, digest-pinned images |
-| **dev** | `.../OpenMasjidAPPS/dev/catalog.json` | each entry's `dev_ref` — the app's `dev` branch and its `:dev` image |
+| **dev** | `.../OpenMasjidAPPS/dev/catalog.json` | each entry's `dev_ref` — the app's `dev` branch, at a prerelease version (`X.Y.Z-dev.N`) with an image pinned to that exact tag |
 
 `registry.yaml` holds **both** addresses per app and is identical on both branches; the branch being
 built decides which column is used. An app with no `dev_ref` still appears on the dev channel — it

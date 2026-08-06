@@ -262,6 +262,37 @@ when an app's stable release moves (because fallback entries and the floor both 
   [`docs/BUILDING_AN_APP.md` §8b](docs/BUILDING_AN_APP.md). That is the prompt path; the hourly
   schedule is the floor under it.
 
+### The dev entry contract — a version axis and an immutable target
+
+A dev entry must give the platform the same two things a stable entry gives it, or dev-channel
+updates silently do not work:
+
+1. **`version` is a semver prerelease** — `X.Y.Z-dev.N`, where `X.Y.Z` is the release being worked
+   toward and `N` increments per dev build. It must **never equal the stable version**. Ordering is
+   `0.10.2 < 0.11.0-dev.1 < 0.11.0`: ahead of the last release, behind the next.
+2. **Every service's image is immutable** — `@sha256:<digest>`, or a tag **equal to that entry's
+   `version`**. Never `:dev`. A third-party image (a database, say) can only comply by digest, which
+   is right: it is as much a part of what gets installed as the app's own image.
+
+Why both, in the words of the failure: OpenMasjidOS detects an update by comparing the catalog's
+`version` with the installed version. With a repeated version string there is nothing to compare, so
+a new dev build changes nothing observable — no notification, and the update button has no target.
+With a moving `:dev` tag the catalog names one build and installs another, so "what you were told
+about" and "what you get" are different things. On **2026-08-05** all four apps had both faults at
+once and the Development channel was inert.
+
+Enforced by `devEntryProblems()` (`scripts/channels.mjs`), checked per entry against every service.
+
+> **Migration state (agreed 2026-08-05).** A non-compliant dev entry currently **falls back to that
+> app's stable release** with a ⚠ warning naming the repo, rather than failing the build. That keeps
+> the dev channel valid and lets apps migrate one at a time. **Flip it to `fail()` once every listed
+> app publishes prerelease-versioned dev images** — the fallback is a migration aid, not the
+> destination. The `else` branch that does it is marked in `build-catalog.mjs`.
+
+This is also the one place a plain release version is legitimate on the dev channel: a **stable
+fallback** entry carries the release version and the release image by definition, and the contract is
+not applied to it.
+
 **The one rule that must not break: no dev content on `main`.** `main/catalog.json` is production —
 the platform fetches that raw file with no build, deploy or staging step in between, so anything
 landing there is live to every masjid instantly. Three gates enforce it:

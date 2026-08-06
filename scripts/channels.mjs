@@ -276,6 +276,71 @@ export function isDevImageRef(imageRef) {
   return isDevImageTag(imageTagOf(imageRef));
 }
 
+/** A digest-pinned reference — the only pin a moved tag cannot subvert. */
+export const IMAGE_DIGEST_RE = /@sha256:[0-9a-f]{64}/;
+
+// --- the dev entry contract -----------------------------------------------
+
+/**
+ * THE DEV ENTRY CONTRACT. A dev-channel entry must give the platform a version
+ * axis and an immutable target, exactly as a stable entry does:
+ *
+ *   1. `version` is a semver **prerelease** — `X.Y.Z-dev.N`, where X.Y.Z is the
+ *      release being worked toward. It must never equal the stable version, or
+ *      there is nothing for the platform to compare and an update is undetectable.
+ *   2. **Every** service's image is immutable: `@sha256:<digest>`, or a tag equal
+ *      to this entry's `version`. Never `:dev`.
+ *
+ * Why both: with a moving `:dev` tag the catalog names one build and pulls
+ * another, so "what you were told about" and "what you get" diverge. With a
+ * repeated version string there is no axis to compare at all — a new dev build
+ * changes nothing in the catalog, the platform stays silent, and the update
+ * button has no target.
+ *
+ * A third-party image (a database, say) can only satisfy this by digest, which is
+ * correct: it is as much a part of what gets installed as the app's own image.
+ *
+ * Returns human-readable problems; empty means the entry is publishable on dev.
+ * This does NOT apply to a stable-fallback entry — that legitimately carries a
+ * plain release version and a release image. See build-catalog.mjs.
+ */
+export function devEntryProblems({ version, composeText } = {}) {
+  const problems = [];
+
+  const parsed = parseVersion(version);
+  if (!parsed) {
+    problems.push(
+      `version ${JSON.stringify(version)} is not a semver version, so the platform cannot order it`,
+    );
+  } else if (!parsed.prerelease) {
+    problems.push(
+      `version "${version}" has no prerelease suffix — a dev entry needs X.Y.Z-dev.N (e.g. "${parsed.parts[0]}.${parsed.parts[1] + 1}.0-dev.1"), ` +
+        `so it can never equal the stable version and a new dev build is detectable`,
+    );
+  }
+
+  for (const ref of imageRefsIn(composeText)) {
+    if (ref.includes('${')) {
+      problems.push(
+        `image "${ref}" is substituted at install time, so the catalog cannot know which build it names`,
+      );
+      continue;
+    }
+    if (IMAGE_DIGEST_RE.test(ref)) continue; // digest — immutable, always fine
+    const tag = imageTagOf(ref);
+    if (!tag) {
+      problems.push(`image "${ref}" has neither a tag nor a digest`);
+    } else if (version == null || tag !== String(version)) {
+      problems.push(
+        `image "${ref}" is tagged "${tag}", which is neither an @sha256 digest nor this entry's version ` +
+          `"${version}" — the catalog would name one build and install another`,
+      );
+    }
+  }
+
+  return problems;
+}
+
 // --- the leakage gate -----------------------------------------------------
 
 /**

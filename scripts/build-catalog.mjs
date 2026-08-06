@@ -38,6 +38,8 @@ import {
   COMMIT_SHA_RE,
   devVersionIsAcceptable,
   compareVersions,
+  devEntryProblems,
+  IMAGE_DIGEST_RE,
 } from './channels.mjs';
 
 const REGISTRY = 'registry.yaml';
@@ -62,9 +64,9 @@ const GRANT_RE = /^[a-z0-9][a-z0-9-]{0,79}\/[a-z0-9][a-z0-9-]{0,39}$/;
 
 // A digest-pinned image reference contains @sha256:<64 hex>. Without it, a moved
 // image tag can repoint a "pinned" version string to a different (backdoored)
-// image — pinning the tag is NOT enough; pin the digest.
-const IMAGE_LINE_RE = /^\s*image:\s*["']?([^"'\s#]+)/gm;
-const IMAGE_DIGEST_RE = /@sha256:[0-9a-f]{64}/;
+// image — pinning the tag is NOT enough; pin the digest. IMAGE_DIGEST_RE and the
+// image scanner both live in channels.mjs so the dev entry contract and this warning
+// cannot drift apart.
 
 // Compose safety is enforced by validateCompose() (scripts/validate-compose.mjs),
 // which parses the YAML and mirrors the platform's install-time risk check so that
@@ -401,6 +403,30 @@ for (const entry of entries) {
             `${repo}@${devRef} (or bump its manifest version) and the dev channel will pick it up.`,
         );
         src = null; // fall through to the stable load below
+      } else {
+        // THE DEV ENTRY CONTRACT. A dev entry needs a version axis the platform can
+        // compare and an image reference it can actually pin — a repeated version
+        // string plus a moving `:dev` tag means a new dev build changes nothing in
+        // the catalog, so the platform stays silent and the update button has no
+        // target. See devEntryProblems() in channels.mjs.
+        //
+        // MIGRATION (agreed 2026-08-05, "option b"): a non-compliant entry falls back
+        // to the app's stable release with this warning, rather than failing the
+        // build. That keeps the dev channel valid and lets apps migrate one at a time
+        // instead of all at once. **Flip this to fail() once every listed app
+        // publishes prerelease-versioned dev images** — the fallback is a migration
+        // aid, not the destination.
+        const problems = devEntryProblems({ version: devVersion, composeText: src.composeText });
+        if (problems.length) {
+          warn(
+            `${id}: dev entry does not meet the dev channel contract, so the dev catalog is serving the ` +
+              `stable release ${JSON.stringify(stableVersion)} instead:\n     - ${problems.join('\n     - ')}\n` +
+              `     Fix in ${repo}@${devRef}: publish the dev image under its exact manifest version ` +
+              `(e.g. "<image>:X.Y.Z-dev.N") and reference that tag — not ":dev" — for every service. ` +
+              `See docs/BUILDING_AN_APP.md §8b.`,
+          );
+          src = null; // fall through to the stable load below
+        }
       }
     }
   }
@@ -487,9 +513,7 @@ for (const entry of entries) {
   // FIX B — warn on any image: that isn't digest-pinned (@sha256:<hex>). A pinned
   // tag is not enough: a tag can be moved to repoint at a different, backdoored
   // image. Warn only (don't break apps already shipping on tag pins).
-  IMAGE_LINE_RE.lastIndex = 0;
-  for (let mm; (mm = IMAGE_LINE_RE.exec(composeText)); ) {
-    const imageRef = mm[1];
+  for (const imageRef of imageRefsIn(composeText)) {
     if (imageRef.includes('${')) continue; // env-substituted at install — can't judge here
     if (IMAGE_DIGEST_RE.test(imageRef)) continue;
     if (isDevChannel && isDevImageRef(imageRef)) {

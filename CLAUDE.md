@@ -210,8 +210,12 @@ from is what identifies the channel.
 | Branch here | `main` | `dev` |
 | Registry column | `ref` + `commit` | `dev_ref` |
 | Ref kind | release tag / SHA — **immutable** | a branch — **moves on purpose** |
-| App's image | release tag, `@sha256` digest-pinned | `:dev` |
+| Entry `version` | the release version | a **prerelease**, `X.Y.Z-dev.N` — never equal to stable |
+| App's image | release tag, `@sha256` digest-pinned | the **exact prerelease version tag**, or `@sha256` — never `:dev` |
 | Who installs it | every masjid | testers who opted in |
+
+Note the asymmetry in the first two rows: the *git ref* moves (that is what a dev channel is), but
+what it resolves to is pinned — an immutable commit, a distinct version, an exact image tag.
 
 **Building.** `npm run build` takes `--channel main|dev`, defaults from `OPENMASJID_CHANNEL`, then
 from the current git branch (`dev`/`dev/*` → dev, anything else → main). Both workflows state it
@@ -223,13 +227,17 @@ npm run build -- --channel dev      # or: OPENMASJID_CHANNEL=dev npm run build
 
 **To ship an app on the dev channel**, that app's repo must:
 1. have a **`dev` branch**,
-2. **publish a dev-tagged image** from it (`ghcr.io/<owner>/<repo>:dev`),
-3. **reference that tag in its dev-branch `docker-compose.yml`**, and
+2. on it, declare a **prerelease `version`** in `manifest.yaml` — `X.Y.Z-dev.N`, never equal to the
+   stable version,
+3. **publish an image under that exact version** (`ghcr.io/<owner>/<repo>:X.Y.Z-dev.N`) and
+   **reference that exact tag — or a digest — for every service** in its dev-branch
+   `docker-compose.yml`. Never `:dev`; publishing `:dev` as an extra alias for humans is fine, it
+   just must not be what the compose names,
 4. carry a **`dev_ref`** in `registry.yaml`.
 
 An app missing any of that still appears on the dev channel — it **falls back to its stable
-release**, with a build notice (a declared-but-missing `dev_ref` gets a ⚠ warning). The dev channel
-always lists every app.
+release**, with a warning (see "The dev entry contract" below). The dev channel always lists every
+app.
 
 ### Freshness — the dev channel must never be behind stable
 
@@ -237,8 +245,9 @@ This is the mirror of the leakage rule below, and it is just as load-bearing. If
 `dev/catalog.json` reports an older version than `main/catalog.json`, a masjid switching to the
 Development channel is offered an **app downgrade** — which is what happened on **2026-08-05**: three
 apps shipped stable releases, nothing rebuilt the dev catalog, and the dashboard offered to move
-every app backwards. Equal versions across channels are fine and normal (a moving `:dev` tag ships
-new content under an unchanged version string); *older* is a bug.
+every app backwards. *Older* is a bug — and since the dev entry contract below, *equal* is a bug too:
+a dev entry must carry a distinct prerelease version, or the platform has nothing to compare and a
+new dev build is undetectable.
 
 Two mechanisms, in this order:
 

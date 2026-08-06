@@ -80,7 +80,7 @@ catalogs — one per branch:
 | Channel | URL | Built from |
 |---------|-----|------------|
 | **stable** (default) | `.../OpenMasjidAPPS/main/catalog.json` | each entry's `ref`/`commit` — release tags, digest-pinned images |
-| **dev** | `.../OpenMasjidAPPS/dev/catalog.json` | each entry's `dev_ref` — the app's `dev` branch and its `:dev` image |
+| **dev** | `.../OpenMasjidAPPS/dev/catalog.json` | each entry's `dev_ref` — the app's `dev` branch, at a prerelease version (`X.Y.Z-dev.N`) with an image pinned to that exact tag |
 
 `registry.yaml` holds **both** addresses per app and is identical on both branches; the branch being
 built decides which column is used. An app with no `dev_ref` still appears on the dev channel — it
@@ -144,8 +144,8 @@ already shipped):
   repointed at backdoored content and the unattended daily rebuild would republish it. A mutable ref
   is resolved to the SHA it currently points at and warned about.
 - **Digest-pinned images.** `image: …:1.2.3@sha256:…`, because a tag can be moved to a different
-  image while the version string looks unchanged. (The `:dev` channel is deliberately exempt — a
-  moving tag is the point there.)
+  image while the version string looks unchanged. The dev channel is **not** exempt: a dev entry
+  must pin a digest or the exact prerelease version tag it declares, never a moving `:dev`.
 - **SHA-pinned GitHub Actions** and `npm ci`, so an unattended job can't pull unreviewed code.
   Dependabot watches both weekly.
 

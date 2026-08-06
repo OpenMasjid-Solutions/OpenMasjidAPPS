@@ -30,6 +30,7 @@ import {
   parseVersion,
   compareVersions,
   devVersionIsAcceptable,
+  devEntryProblems,
 } from '../channels.mjs';
 
 const SHA = 'a'.repeat(40);
@@ -371,6 +372,118 @@ test('THE INVARIANT: an unverifiable version is refused, not waved through', () 
 test('THE INVARIANT: with no stable release there is nothing to be behind', () => {
   assert.ok(devVersionIsAcceptable('0.1.0', null));
   assert.ok(devVersionIsAcceptable('anything', null));
+});
+
+// --- the dev entry contract -----------------------------------------------
+
+const DIGEST = '@sha256:' + 'a'.repeat(64);
+const composeWith = (...imgs) =>
+  ['services:', ...imgs.map((i, n) => `  svc${n}:\n    image: ${i}`)].join('\n');
+
+test('a compliant dev entry: prerelease version + tag equal to it', () => {
+  assert.deepEqual(
+    devEntryProblems({
+      version: '0.11.0-dev.1',
+      composeText: composeWith('ghcr.io/o/openmasjidkiosk:0.11.0-dev.1'),
+    }),
+    [],
+  );
+});
+
+test('a digest satisfies the contract whatever the tag says', () => {
+  assert.deepEqual(
+    devEntryProblems({ version: '0.11.0-dev.1', composeText: composeWith(`ghcr.io/o/r:anything${DIGEST}`) }),
+    [],
+  );
+  // A third-party image can only comply by digest — it will never carry the app's version.
+  assert.deepEqual(
+    devEntryProblems({
+      version: '0.11.0-dev.1',
+      composeText: composeWith(`ghcr.io/o/r:0.11.0-dev.1`, `postgres:16-alpine${DIGEST}`),
+    }),
+    [],
+  );
+});
+
+test('THE BUG: same version as stable + moving :dev tag is rejected on both counts', () => {
+  // This is exactly what all four apps published on 2026-08-05: nothing in the entry
+  // changed when a new dev build shipped, so the platform could not detect it.
+  const problems = devEntryProblems({
+    version: '0.10.2',
+    composeText: composeWith('ghcr.io/openmasjid-solutions/openmasjidkiosk:dev'),
+  });
+  assert.equal(problems.length, 2);
+  assert.match(problems[0], /no prerelease suffix/);
+  assert.match(problems[1], /tagged "dev"/);
+  assert.match(problems[1], /name one build and install another/);
+});
+
+test('the suggested next version in the message is a sensible minor bump', () => {
+  const [msg] = devEntryProblems({ version: '0.10.2', composeText: '' });
+  assert.match(msg, /0\.11\.0-dev\.1/);
+});
+
+test('a plain release version is rejected on dev even with a perfect image', () => {
+  // The carve-out for plain versions applies to stable-FALLBACK entries, which never
+  // reach this function — build-catalog.mjs only asks about dev-sourced entries.
+  const problems = devEntryProblems({ version: '0.10.2', composeText: composeWith(`ghcr.io/o/r:0.10.2${DIGEST}`) });
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /no prerelease suffix/);
+});
+
+test('a mismatched tag is rejected even though it looks like a version', () => {
+  // Strict: the tag must BE this entry's version. "0.11.0-dev.1" advertised while
+  // "0.11.0-dev.2" is installed is the same divergence in a smaller font.
+  const problems = devEntryProblems({
+    version: '0.11.0-dev.2',
+    composeText: composeWith('ghcr.io/o/r:0.11.0-dev.1'),
+  });
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /tagged "0\.11\.0-dev\.1"/);
+});
+
+test('a v-prefixed tag does not count as matching', () => {
+  assert.equal(
+    devEntryProblems({ version: '0.11.0-dev.1', composeText: composeWith('ghcr.io/o/r:v0.11.0-dev.1') }).length,
+    1,
+  );
+});
+
+test('EVERY service is checked, not just the first', () => {
+  const problems = devEntryProblems({
+    version: '0.11.0-dev.1',
+    composeText: composeWith('ghcr.io/o/app:0.11.0-dev.1', 'ghcr.io/o/worker:dev', 'redis:7'),
+  });
+  assert.equal(problems.length, 2);
+  assert.match(problems[0], /worker:dev/);
+  assert.match(problems[1], /redis:7/);
+});
+
+test('an untagged image and a substituted image are both rejected', () => {
+  assert.match(devEntryProblems({ version: '1.0.0-dev.1', composeText: composeWith('nginx') })[0], /neither a tag nor a digest/);
+  assert.match(
+    devEntryProblems({ version: '1.0.0-dev.1', composeText: composeWith('ghcr.io/o/r:${TAG}') })[0],
+    /substituted at install time/,
+  );
+});
+
+test('an unparseable version is rejected as unorderable', () => {
+  assert.match(devEntryProblems({ version: 'dev', composeText: '' })[0], /not a semver version/);
+  assert.match(devEntryProblems({ version: null, composeText: '' })[0], /not a semver version/);
+});
+
+test('a compose with no images is fine on its own — the version rule still applies', () => {
+  assert.deepEqual(devEntryProblems({ version: '0.11.0-dev.1', composeText: 'services:\n  a:\n    build: .\n' }), []);
+});
+
+test('the contract and the freshness floor are independent checks', () => {
+  // 0.11.0-dev.1 is ahead of stable 0.10.2 (floor passes) but the image is moving
+  // (contract fails). Both must be consulted; neither implies the other.
+  assert.ok(devVersionIsAcceptable('0.11.0-dev.1', '0.10.2'));
+  assert.equal(
+    devEntryProblems({ version: '0.11.0-dev.1', composeText: composeWith('ghcr.io/o/r:dev') }).length,
+    1,
+  );
 });
 
 test('a resolved commit SHA never reads as dev — which is why the DECLARED ref is judged', () => {

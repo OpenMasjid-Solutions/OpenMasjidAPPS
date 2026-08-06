@@ -210,8 +210,12 @@ from is what identifies the channel.
 | Branch here | `main` | `dev` |
 | Registry column | `ref` + `commit` | `dev_ref` |
 | Ref kind | release tag / SHA — **immutable** | a branch — **moves on purpose** |
-| App's image | release tag, `@sha256` digest-pinned | `:dev` |
+| Entry `version` | the release version | a **prerelease**, `X.Y.Z-dev.N` — never equal to stable |
+| App's image | release tag, `@sha256` digest-pinned | the **exact prerelease version tag**, or `@sha256` — never `:dev` |
 | Who installs it | every masjid | testers who opted in |
+
+Note the asymmetry in the first two rows: the *git ref* moves (that is what a dev channel is), but
+what it resolves to is pinned — an immutable commit, a distinct version, an exact image tag.
 
 **Building.** `npm run build` takes `--channel main|dev`, defaults from `OPENMASJID_CHANNEL`, then
 from the current git branch (`dev`/`dev/*` → dev, anything else → main). Both workflows state it
@@ -223,13 +227,17 @@ npm run build -- --channel dev      # or: OPENMASJID_CHANNEL=dev npm run build
 
 **To ship an app on the dev channel**, that app's repo must:
 1. have a **`dev` branch**,
-2. **publish a dev-tagged image** from it (`ghcr.io/<owner>/<repo>:dev`),
-3. **reference that tag in its dev-branch `docker-compose.yml`**, and
+2. on it, declare a **prerelease `version`** in `manifest.yaml` — `X.Y.Z-dev.N`, never equal to the
+   stable version,
+3. **publish an image under that exact version** (`ghcr.io/<owner>/<repo>:X.Y.Z-dev.N`) and
+   **reference that exact tag — or a digest — for every service** in its dev-branch
+   `docker-compose.yml`. Never `:dev`; publishing `:dev` as an extra alias for humans is fine, it
+   just must not be what the compose names,
 4. carry a **`dev_ref`** in `registry.yaml`.
 
 An app missing any of that still appears on the dev channel — it **falls back to its stable
-release**, with a build notice (a declared-but-missing `dev_ref` gets a ⚠ warning). The dev channel
-always lists every app.
+release**, with a warning (see "The dev entry contract" below). The dev channel always lists every
+app.
 
 ### Freshness — the dev channel must never be behind stable
 
@@ -237,8 +245,9 @@ This is the mirror of the leakage rule below, and it is just as load-bearing. If
 `dev/catalog.json` reports an older version than `main/catalog.json`, a masjid switching to the
 Development channel is offered an **app downgrade** — which is what happened on **2026-08-05**: three
 apps shipped stable releases, nothing rebuilt the dev catalog, and the dashboard offered to move
-every app backwards. Equal versions across channels are fine and normal (a moving `:dev` tag ships
-new content under an unchanged version string); *older* is a bug.
+every app backwards. *Older* is a bug — and since the dev entry contract below, *equal* is a bug too:
+a dev entry must carry a distinct prerelease version, or the platform has nothing to compare and a
+new dev build is undetectable.
 
 Two mechanisms, in this order:
 
@@ -261,6 +270,37 @@ when an app's stable release moves (because fallback entries and the floor both 
 - an app repo can force a rebuild immediately with `repository_dispatch` (`rebuild-catalog`) — see
   [`docs/BUILDING_AN_APP.md` §8b](docs/BUILDING_AN_APP.md). That is the prompt path; the hourly
   schedule is the floor under it.
+
+### The dev entry contract — a version axis and an immutable target
+
+A dev entry must give the platform the same two things a stable entry gives it, or dev-channel
+updates silently do not work:
+
+1. **`version` is a semver prerelease** — `X.Y.Z-dev.N`, where `X.Y.Z` is the release being worked
+   toward and `N` increments per dev build. It must **never equal the stable version**. Ordering is
+   `0.10.2 < 0.11.0-dev.1 < 0.11.0`: ahead of the last release, behind the next.
+2. **Every service's image is immutable** — `@sha256:<digest>`, or a tag **equal to that entry's
+   `version`**. Never `:dev`. A third-party image (a database, say) can only comply by digest, which
+   is right: it is as much a part of what gets installed as the app's own image.
+
+Why both, in the words of the failure: OpenMasjidOS detects an update by comparing the catalog's
+`version` with the installed version. With a repeated version string there is nothing to compare, so
+a new dev build changes nothing observable — no notification, and the update button has no target.
+With a moving `:dev` tag the catalog names one build and installs another, so "what you were told
+about" and "what you get" are different things. On **2026-08-05** all four apps had both faults at
+once and the Development channel was inert.
+
+Enforced by `devEntryProblems()` (`scripts/channels.mjs`), checked per entry against every service.
+
+> **Migration state (agreed 2026-08-05).** A non-compliant dev entry currently **falls back to that
+> app's stable release** with a ⚠ warning naming the repo, rather than failing the build. That keeps
+> the dev channel valid and lets apps migrate one at a time. **Flip it to `fail()` once every listed
+> app publishes prerelease-versioned dev images** — the fallback is a migration aid, not the
+> destination. The `else` branch that does it is marked in `build-catalog.mjs`.
+
+This is also the one place a plain release version is legitimate on the dev channel: a **stable
+fallback** entry carries the release version and the release image by definition, and the contract is
+not applied to it.
 
 **The one rule that must not break: no dev content on `main`.** `main/catalog.json` is production —
 the platform fetches that raw file with no build, deploy or staging step in between, so anything
@@ -298,6 +338,19 @@ gh pr create --base main --head release/<date>     # Hasan merges; `cla` must pa
 git fetch origin && git tag -a vX.Y.Z <merge-commit> -m "…" && git push origin vX.Y.Z
 gh release create vX.Y.Z --title "…" --notes-file <notes>
 ```
+
+**Then bring `dev` back in line** — the last step of every release, not an optional tidy-up:
+
+```bash
+git checkout dev && git merge --ff-only origin/main   # dev's catalog.json is now the STABLE one
+npm run build -- --channel dev                        # ...so rebuild it BEFORE pushing
+npm run check && git commit -am "chore: restore the dev-channel catalog after the release"
+```
+
+Do the rebuild **before** the push, in the same push — otherwise the dev channel serves stable
+content until the next hourly rebuild, which is the freshness bug in miniature. Skipping this step
+entirely is also wrong: `dev` would stay strictly behind `main`, and the *next* release would hit a
+`catalog.json` conflict on a PR that should have merged cleanly.
 
 Version the **catalog repo**, not the apps — each app carries its own version in its own manifest,
 and the platform never reads a version from this repo. Notes should say what changed for a masjid

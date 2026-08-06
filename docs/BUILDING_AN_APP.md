@@ -83,8 +83,8 @@ auto-published `catalog.json`. These rules keep that supply chain safe. The cata
    (or read it from the GHCR package page). Bump both the tag and the digest on every release.
    *(Likewise, ask the catalog maintainer to pin your registry entry to an immutable `commit:` SHA, not
    a movable tag — see [`../registry.yaml`](../registry.yaml).)*
-   This applies to the **stable** channel. A `dev`-branch compose tracks the moving `:dev` tag on
-   purpose and is exempt — see §8b.
+   **The dev channel is not exempt.** A dev compose must also pin an immutable reference — either a
+   digest, or the exact prerelease version tag it declares. Never `:dev`. See §8b.
 
 2. **Treat any Fabric SSO/session value as an IDENTITY assertion, never a credential.** The Fabric
    answer to *"is the current viewer the platform admin?"* is the **only** thing it tells you. Never
@@ -584,19 +584,37 @@ unreleased may reach it.
 **Shipping on the dev channel is optional.** To do it, your repo needs all four:
 
 1. a **`dev` branch**;
-2. a **dev-tagged image published from it** — `ghcr.io/<owner>/<repo>:dev`, multi-arch, public, same
-   as your release image but rebuilt from `dev`;
-3. your **dev branch's `docker-compose.yml` referencing that `:dev` tag** (a moving tag is expected
-   here — this is the only place the catalog does not ask you to digest-pin, because tracking the tag
-   is the point);
+2. on that branch, `manifest.yaml`'s **`version` is a semver prerelease** — `X.Y.Z-dev.N`, where
+   `X.Y.Z` is the release you are working toward and `N` increments each dev build. If stable is
+   `0.10.2`, your next dev build is `0.11.0-dev.1`, then `-dev.2`. **It must never equal your stable
+   version.** When that work ships, the version becomes `0.11.0` and dev moves to `0.12.0-dev.1`;
+3. an image **published under that exact version** — `ghcr.io/<owner>/<repo>:0.11.0-dev.1`,
+   multi-arch and public — and your dev branch's `docker-compose.yml` **referencing that exact tag
+   (or a digest) for every service**. Keep publishing `:dev` as a convenience alias if you like; it
+   just must not be what the compose references;
 4. **`dev_ref: dev`** on your registry entry.
+
+**Why the versioning matters.** OpenMasjidOS detects an update by comparing the catalog's `version`
+with the installed version. If your dev entry repeats your stable version, there is nothing to
+compare and a new dev build is undetectable — no notification, and nothing to update to. If it pins
+the moving `:dev` tag, the catalog names one build and installs another. A dev entry with either
+fault is **not published**: the catalog serves your stable release on the dev channel instead, with a
+warning naming your repo.
+
+**Publish the image before the entry.** The catalog pins the exact tag, so if a dev entry lands
+before its image exists, a masjid on the Development channel gets a pull failure. Push the image,
+then let the catalog pick it up (hourly, or immediately via the dispatch below).
 
 **Keep your `dev` branch at or ahead of your release.** If your `dev` branch declares an older
 `version` than your latest stable release — the usual cause is a hotfix cut on `main` and never
 merged down — the catalog will **not** publish it. It serves your stable release on the dev channel
 instead, with a warning, because publishing it would offer a masjid a downgrade. Merge your release
-into `dev` (or bump the manifest there) and the next rebuild picks it up. Equal versions on both
-branches are fine: a moving `:dev` tag ships new content under an unchanged version string.
+into `dev` (or bump the manifest there) and the next rebuild picks it up.
+
+This falls out of the prerelease scheme naturally: `0.11.0-dev.1` is ahead of stable `0.10.2`, so it
+publishes. Once `0.11.0` actually ships, `0.11.0-dev.1` is *behind* it — the prerelease has been
+superseded — and the dev channel serves `0.11.0` until you open `0.12.0-dev.1`. That is correct
+self-healing, not a fault.
 
 **Trigger a rebuild when you push to `dev`.** The catalog rebuilds hourly on its own, so you never
 *have* to — but if you want your dev build listed within seconds rather than within the hour, fire a
@@ -622,11 +640,10 @@ Notes:
 - Keep `manifest.yaml` valid on `dev` too — same `id`, same rules. It is fetched from that branch.
 - Skip `dev_ref` and you still appear on the dev channel: it falls back to your stable release. That
   is the right choice until you actually have a dev branch to serve.
-- **You do not need a different `version` on `dev`.** OpenMasjidOS compares *channels*, not version
-  numbers, so the same version on both branches is fine and is the normal case for a moving `:dev`
-  tag. Bumping it on `dev` (e.g. `0.67.0` while stable is `0.66.1`) is still helpful for humans — it
-  makes the App Store say what a tester is on — but it is not required. What *is* required is that
-  `dev` is never **lower** than your release; see above.
+- **Your `dev` version must differ from your stable version, and must be a prerelease.** This is the
+  one thing dev-channel updates depend on: the platform compares the catalog's `version` against the
+  installed version, so a repeated version string means a new dev build is undetectable. See the
+  four requirements above.
 
 ---
 
@@ -640,8 +657,10 @@ Notes:
       **no** `extends`/`include`, **no** discovery labels. (Rejected at build AND at install.)
 - [ ] Image is **digest-pinned** (`@sha256:…`), not just tagged, so a moved tag can't repoint it (§2b.1).
 - [ ] Registry `ref` is a **release tag**, never a branch; a branch belongs in `dev_ref` (§8b).
-- [ ] If shipping on the dev channel: `dev` branch exists, publishes a `:dev` image, its compose
-      references that tag, and the registry entry carries `dev_ref` (§8b).
+- [ ] If shipping on the dev channel: `dev` branch exists; its `manifest.yaml` `version` is a
+      prerelease (`X.Y.Z-dev.N`) that never equals the stable version; an image is published under
+      that exact version; the dev compose references that exact tag (or a digest) for **every**
+      service, never `:dev`; and the registry entry carries `dev_ref` (§8b).
 - [ ] Fabric SSO/session is used **only** as an identity check, never as a credential to call the
       platform API; `OPENMASJID_BASE_URL` is `https://` for any cross-host deployment (§2b.2–3).
 - [ ] Image is **public** on GHCR and **multi-arch** (amd64 + arm64).

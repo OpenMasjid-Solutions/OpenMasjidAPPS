@@ -302,6 +302,32 @@ This is also the one place a plain release version is legitimate on the dev chan
 fallback** entry carries the release version and the release image by definition, and the contract is
 not applied to it.
 
+### The stable channel must never move backwards
+
+The mirror of the freshness floor, on the other channel. Before writing `catalog.json`, a **stable**
+build fetches the catalog masjids are actually running and **fails** if any app would move backwards.
+
+It exists because on **2026-08-13** a `dev` → `main` release would have taken donations back two
+releases, kiosk one and students four. Three apps had been released by committing their registry
+bumps **straight onto `main`**, so `dev` still pinned the older tags; the documented release flow,
+followed exactly, would have published downgrades to every masjid. It was caught by simulating the
+release by hand, which is not a control.
+
+- **Stable only.** The dev channel legitimately moves backwards when an entry falls back to its
+  stable release, and the freshness floor already bounds it from below.
+- **Compares against the published artifact**, not the branch — what masjids have installed is the
+  only thing that matters. If it cannot be fetched the build warns and continues: refusing to
+  publish because GitHub blinked would be worse than the fault being guarded against.
+- **Apps present on both sides only.** A newly listed app has nothing to regress from; a delisted one
+  is a deliberate edit, not a downgrade.
+- **A deliberate rollback is a real operation** (`display: roll the catalog back to v0.61.0` has
+  happened), so it is overridable with `OPENMASJID_ALLOW_DOWNGRADE=1` — which must be stated, not
+  stumbled into.
+
+**The cure, not just the alarm: release bumps belong on `dev`.** Committing them to `main` is what
+desynchronises the branches in the first place. See §3b "Releasing" and
+[`docs/BUILDING_AN_APP.md` §8a](docs/BUILDING_AN_APP.md).
+
 **The one rule that must not break: no dev content on `main`.** `main/catalog.json` is production —
 the platform fetches that raw file with no build, deploy or staging step in between, so anything
 landing there is live to every masjid instantly. Three gates enforce it:

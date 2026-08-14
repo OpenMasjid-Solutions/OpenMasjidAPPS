@@ -86,6 +86,28 @@ auto-published `catalog.json`. These rules keep that supply chain safe. The cata
    **The dev channel is not exempt.** A dev compose must also pin an immutable reference — either a
    digest, or the exact prerelease version tag it declares. Never `:dev`. See §8b.
 
+   > ### ⚠ Tag the digest-pin commit — not the commit before it
+   >
+   > The digest does not exist until CI has built and pushed the image, so the commit that writes
+   > `@sha256:…` into your compose necessarily comes **after** the build. Do your release in this
+   > order:
+   >
+   > 1. bump `manifest.yaml` to the release version → 2. let CI publish the image →
+   > 3. commit the compose with the **published** digest → 4. **tag that commit**.
+   >
+   > Tag at step 1 or 2 and your release tag carries the **previous** release's digest. Anyone who
+   > pins your tag then ships the old image under the new version number — a masjid "updates" and
+   > gets the code it already had, with nothing to indicate it.
+   >
+   > This is not hypothetical. `OpenMasjidDisplay`'s `v0.67.0` tag carries
+   > `@sha256:3a789623…`, which is **0.66.1's image**; the correct `0.67.0` digest
+   > (`@sha256:02672477…`) landed five minutes later in a follow-up commit. `OpenMasjidKiosk`'s
+   > `v0.11.0` has the same shape. Both were caught only because the catalog pins a `commit:` SHA
+   > rather than the tag, so it fetched the corrected commit.
+   >
+   > If your tag is already wrong, do not move it — tags are immutable by convention here. Cut the
+   > next patch release, or tell the catalog maintainer which commit to pin.
+
 2. **Treat any Fabric SSO/session value as an IDENTITY assertion, never a credential.** The Fabric
    answer to *"is the current viewer the platform admin?"* is the **only** thing it tells you. Never
    use the session cookie, `OPENMASJID_APP_SECRET`, or any platform-provided value to call the
@@ -564,6 +586,35 @@ apps:
 
 CI fetches your repo, validates it, and regenerates `catalog.json`. Your app then appears in the
 store.
+
+### 8a. Shipping a new release to masjids
+
+Once listed, a new release of your app reaches masjids only when the **registry pin moves**. The
+catalog does not follow your tags — `commit:` is what it fetches, and it is hand-edited.
+
+**Open a PR against the catalog's `dev` branch — never `main`.** Change only your own entry:
+
+```yaml
+  - id: my-app
+    ref: v1.2.0            # the tag you just published
+    commit: <40-char SHA>  # the commit that tag is on — the one with the correct digest (§2b.1)
+```
+
+Then stop. A catalog maintainer runs the release that moves `main`; that is the only thing that
+changes what masjids install. Do **not** commit to the catalog's `main`, and do not merge its `dev`
+into `main` — the two branches legitimately hold different builds of `catalog.json`, and a naive
+merge has already come within one command of publishing three app downgrades.
+
+Two things follow from that near-miss:
+
+- **A bump committed straight to `main` desynchronises `dev`.** The next release cut from `dev` then
+  carries *older* pins for your app and silently rolls masjids back. The catalog now fails the build
+  if that would happen, but the cure is to route bumps through `dev` in the first place.
+- **`ref` is a label; `commit` is the truth.** If they disagree — because your tag predates the
+  digest fix (§2b.1) — pin the commit that has the correct digest and say so in the PR.
+
+**The dev channel needs no PR.** `dev_ref: dev` follows your dev branch on its own and rebuilds
+hourly; see §8b.
 
 ### 8b. Update channels — stable and dev
 

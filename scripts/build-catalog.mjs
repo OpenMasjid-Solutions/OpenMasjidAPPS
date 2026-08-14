@@ -40,6 +40,8 @@ import {
   compareVersions,
   devEntryProblems,
   IMAGE_DIGEST_RE,
+  findVersionRegressions,
+  PUBLISHED_MAIN_CATALOG_URL,
 } from './channels.mjs';
 
 const REGISTRY = 'registry.yaml';
@@ -725,6 +727,50 @@ for (const entry of comingSoon) {
 apps.sort((a, b) => a.name.localeCompare(b.name));
 // Drop undefined keys for a tidy catalog.
 const clean = apps.map((a) => JSON.parse(JSON.stringify(a)));
+// THE STABLE REGRESSION GATE. Before writing anything, check this catalog against
+// the one masjids are actually running. Publishing a lower version than they have
+// installed is an app DOWNGRADE, live instantly and with no deploy step to catch it.
+//
+// Checked only on the stable channel: the dev channel legitimately moves backwards
+// when an entry falls back to its stable release (a missing image, a dev branch
+// behind its own release), and the freshness floor already bounds it from below.
+//
+// A deliberate rollback is a real operation — `display: roll the catalog back to
+// v0.61.0` has happened — so this is overridable with OPENMASJID_ALLOW_DOWNGRADE=1.
+// It must be stated, not stumbled into.
+if (!isDevChannel) {
+  let published = null;
+  try {
+    published = JSON.parse(await fetchText(PUBLISHED_MAIN_CATALOG_URL));
+  } catch (e) {
+    // Unreachable/rate-limited/malformed — say so and continue. Refusing to publish
+    // because GitHub was briefly unavailable would be a worse failure than the one
+    // this guards against.
+    warn(`could not read the published stable catalog to check for downgrades (${e.message}) — regression check skipped`);
+  }
+  if (published) {
+    const regressions = findVersionRegressions(clean, published.apps);
+    if (regressions.length) {
+      const lines = regressions.map((r) => `${r.id}: ${r.from} → ${r.to}`);
+      if (process.env.OPENMASJID_ALLOW_DOWNGRADE === '1') {
+        warn(
+          `publishing ${regressions.length} DOWNGRADE(s) because OPENMASJID_ALLOW_DOWNGRADE=1:\n   - ` +
+            lines.join('\n   - '),
+        );
+      } else {
+        fail(
+          `this build would move ${regressions.length} app(s) BACKWARDS for every masjid on the stable ` +
+            `channel:\n   - ${lines.join('\n   - ')}\n   Usually this means registry.yaml is stale on the ` +
+            `branch being released — check whether those apps were bumped directly on main, and merge main ` +
+            `into dev before releasing. If the rollback is deliberate, set OPENMASJID_ALLOW_DOWNGRADE=1.`,
+        );
+      }
+    } else {
+      console.log(`✓ no downgrades: every app is at or ahead of what the stable channel publishes today.`);
+    }
+  }
+}
+
 // Single-channel per branch, and the envelope shape is untouched: no channel key is
 // added here. catalog.json is the platform's contract (CLAUDE.md §2) and the branch
 // it is fetched from is what identifies the channel.

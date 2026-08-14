@@ -31,6 +31,7 @@ import {
   compareVersions,
   devVersionIsAcceptable,
   devEntryProblems,
+  findVersionRegressions,
 } from '../channels.mjs';
 
 const SHA = 'a'.repeat(40);
@@ -372,6 +373,67 @@ test('THE INVARIANT: an unverifiable version is refused, not waved through', () 
 test('THE INVARIANT: with no stable release there is nothing to be behind', () => {
   assert.ok(devVersionIsAcceptable('0.1.0', null));
   assert.ok(devVersionIsAcceptable('anything', null));
+});
+
+// --- the stable regression gate -------------------------------------------
+
+const app = (id, version, extra = {}) => ({ id, version, ...extra });
+
+test('THE 2026-08-13 NEAR MISS: a stale registry would have moved three apps backwards', () => {
+  // What a dev → main release would have published that day, against what main was
+  // serving. Caught by simulating it; this test is so it cannot need simulating again.
+  const published = [app('display', '0.66.1'), app('donations', '0.42.0'), app('kiosk', '0.11.0'), app('students', '0.49.0')];
+  const next = [app('display', '0.67.0'), app('donations', '0.40.1'), app('kiosk', '0.10.2'), app('students', '0.45.1')];
+  const r = findVersionRegressions(next, published);
+  assert.deepEqual(r, [
+    { id: 'donations', from: '0.42.0', to: '0.40.1' },
+    { id: 'kiosk', from: '0.11.0', to: '0.10.2' },
+    { id: 'students', from: '0.49.0', to: '0.45.1' },
+  ]);
+  // display is an UPGRADE and must not be flagged.
+  assert.equal(r.find((x) => x.id === 'display'), undefined);
+});
+
+test('the release that actually shipped is clean', () => {
+  const published = [app('display', '0.66.1'), app('donations', '0.42.0'), app('kiosk', '0.11.0'), app('students', '0.49.0')];
+  const next = [app('display', '0.67.0'), app('donations', '0.42.0'), app('kiosk', '0.11.0'), app('students', '0.49.0')];
+  assert.deepEqual(findVersionRegressions(next, published), []);
+});
+
+test('unchanged versions are not regressions', () => {
+  assert.deepEqual(findVersionRegressions([app('a', '1.0.0')], [app('a', '1.0.0')]), []);
+});
+
+test('a newly listed app has nothing to regress from', () => {
+  assert.deepEqual(findVersionRegressions([app('a', '0.1.0'), app('b', '2.0.0')], [app('b', '2.0.0')]), []);
+});
+
+test('a delisted app is not a regression — it is a deliberate registry edit', () => {
+  // parking-attendant was removed on purpose; absence must not read as a downgrade.
+  assert.deepEqual(findVersionRegressions([app('a', '1.0.0')], [app('a', '1.0.0'), app('gone', '9.9.9')]), []);
+});
+
+test('coming-soon teasers are skipped on both sides', () => {
+  assert.deepEqual(findVersionRegressions([app('a', undefined, { comingSoon: true })], [app('a', '5.0.0')]), []);
+  assert.deepEqual(findVersionRegressions([app('a', '1.0.0')], [app('a', undefined, { comingSoon: true })]), []);
+});
+
+test('a prerelease replacing its release IS a regression', () => {
+  // 0.12.0-dev.1 is below 0.12.0 — publishing it on stable moves masjids backwards.
+  assert.deepEqual(findVersionRegressions([app('a', '0.12.0-dev.1')], [app('a', '0.12.0')]), [
+    { id: 'a', from: '0.12.0', to: '0.12.0-dev.1' },
+  ]);
+});
+
+test('an uncomparable version is skipped, not assumed equal or lower', () => {
+  assert.deepEqual(findVersionRegressions([app('a', 'rolling')], [app('a', '1.0.0')]), []);
+  assert.deepEqual(findVersionRegressions([app('a', '1.0.0')], [app('a', 'rolling')]), []);
+});
+
+test('findVersionRegressions copes with junk input', () => {
+  assert.deepEqual(findVersionRegressions(null, null), []);
+  assert.deepEqual(findVersionRegressions([], []), []);
+  assert.deepEqual(findVersionRegressions([null, app('a', '1.0.0')], [app('a', '1.0.0')]), []);
 });
 
 // --- the dev entry contract -----------------------------------------------

@@ -279,6 +279,43 @@ export function isDevImageRef(imageRef) {
 /** A digest-pinned reference — the only pin a moved tag cannot subvert. */
 export const IMAGE_DIGEST_RE = /@sha256:[0-9a-f]{64}/;
 
+/** The catalog every masjid on the stable channel actually fetches (CLAUDE.md §2.1). */
+export const PUBLISHED_MAIN_CATALOG_URL =
+  'https://raw.githubusercontent.com/OpenMasjid-Solutions/OpenMasjidAPPS/main/catalog.json';
+
+/**
+ * Apps that would move BACKWARDS if `nextApps` replaced `previousApps`.
+ *
+ * The stable channel had no such guard. The freshness floor added in v0.2.0
+ * guarantees dev is never behind stable, but nothing checked that a new stable
+ * catalog is not behind the stable catalog it replaces — so a registry edit that
+ * lowered a pin would publish a downgrade to every masjid, silently and instantly.
+ *
+ * That nearly happened on 2026-08-13: three apps had been released by committing
+ * their registry bumps straight onto `main`, leaving `dev` pinning older tags, and
+ * the documented `dev` → `main` release would have taken donations back two
+ * releases, kiosk one and students four. It was caught by simulating the release by
+ * hand, which is not a control.
+ *
+ * Only compares apps present on BOTH sides: a newly listed app has nothing to
+ * regress from, and a delisted one is a deliberate registry edit (see the
+ * parking-attendant removal), not a downgrade. Entries whose versions cannot be
+ * compared are skipped rather than assumed equal.
+ */
+export function findVersionRegressions(nextApps, previousApps) {
+  const out = [];
+  if (!Array.isArray(nextApps) || !Array.isArray(previousApps)) return out;
+  const prev = new Map(previousApps.filter((a) => a && a.id).map((a) => [a.id, a]));
+  for (const a of nextApps) {
+    if (!a || !a.id || a.comingSoon === true) continue;
+    const p = prev.get(a.id);
+    if (!p || p.comingSoon === true) continue; // newly listed, or was only a teaser
+    const cmp = compareVersions(a.version, p.version);
+    if (cmp !== null && cmp < 0) out.push({ id: a.id, from: String(p.version), to: String(a.version) });
+  }
+  return out;
+}
+
 // --- the dev entry contract -----------------------------------------------
 
 /**

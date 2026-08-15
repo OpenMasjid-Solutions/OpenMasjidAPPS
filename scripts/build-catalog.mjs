@@ -28,6 +28,7 @@ import { execFileSync } from 'node:child_process';
 import { parse } from 'yaml';
 import { validateCompose } from './validate-compose.mjs';
 import { validateSource, rawBase, validateManifestFields } from './registry-validate.mjs';
+import { capabilityFields, capabilityProblems } from './capabilities.mjs';
 import {
   resolveChannel,
   isStableRef,
@@ -578,12 +579,10 @@ for (const entry of entries) {
   // Fabric app-to-app broker grants + tunnel-exposure request (validated here so a
   // malformed shape fails the build rather than silently dropping).
   const fabric = parseFabricManifest(id, m.fabric);
-  if (m.tunnel != null && typeof m.tunnel !== 'boolean') {
-    fail(`${id}: manifest "tunnel" must be true or false`);
-  }
-  if (m.email != null && typeof m.email !== 'boolean') {
-    fail(`${id}: manifest "email" must be true or false`);
-  }
+  // Every boolean capability is type-checked from ONE list (scripts/capabilities.mjs),
+  // so a new one cannot be validated here but forgotten in the entry below — which is
+  // exactly how `whatsapp` went missing and cost apps a 403 they could not diagnose.
+  for (const problem of capabilityProblems(m)) fail(`${id}: ${problem}`);
   const alerts = parseAlertsManifest(id, m.alerts);
 
   // The compose text is embedded verbatim into catalog.json, which every masjid
@@ -633,33 +632,20 @@ for (const entry of entries) {
     description: m.description,
     settings: m.settings,
     ports: m.ports,
-    // Opt-in OpenMasjidOS Fabric capabilities. Carried through so the platform
-    // issues the app a per-app secret at install and honours the matching calls
-    // (sso → /api/auth/session, notifications → /api/fabric/notify,
-    //  stripe → /api/fabric/stripe).
-    sso: m.sso === true ? true : undefined,
-    notifications: m.notifications === true ? true : undefined,
-    // Fetch shared Stripe keys from the OS vault (one account, many apps) instead
-    // of each app storing its own. The platform issues the per-app secret + honours
-    // GET /api/fabric/stripe?account=<name>.
-    stripe: m.stripe === true ? true : undefined,
-    // Learn this app's PUBLIC URL (the admin's Cloudflare-tunnel domain + path) via
-    // GET /api/fabric/site — for absolute links (Stripe return URLs, webhooks, QR).
-    domain: m.domain === true ? true : undefined,
-    // Require HTTPS — set ONLY by apps that use Stripe (they need a secure
-    // context). The platform serves such an app on a dedicated HTTPS port.
-    https: m.https === true ? true : undefined,
+    // Opt-in OpenMasjidOS Fabric capabilities, copied from the SINGLE list in
+    // scripts/capabilities.mjs so the set the build validates and the set it emits
+    // cannot drift apart. Each one carried through here is what makes the platform
+    // issue the app a per-app secret at install and honour the matching calls; a key
+    // that never reaches catalog.json reads on the platform as "the app never asked",
+    // which is a 403 the app author cannot debug from their own repo.
+    // Only `true` survives — an absent key means "did not ask".
+    ...capabilityFields(m),
     // App-to-app broker grants (provides/consumes) — the platform issues the
     // per-app secret and brokers POST /api/fabric/app/<target>/<cap>/<method>.
+    // Not a boolean, so it is parsed and carried separately.
     fabric,
-    // Request internet exposure through the OS's Cloudflare tunnel (the admin still
-    // confirms per-app in Settings). Off ⇒ the app stays on the LAN.
-    tunnel: m.tunnel === true ? true : undefined,
-    // Send email (receipts, parent notices) via the admin's provider over
-    // POST /api/fabric/email — the app never sees the mail credentials.
-    email: m.email === true ? true : undefined,
     // Alert types this app can raise (POST /api/fabric/alert); the admin gets a
-    // granular on/off per alert in Settings → Alerts.
+    // granular on/off per alert in Settings → Alerts. Also not a boolean.
     alerts,
     compose: composeText,
   });

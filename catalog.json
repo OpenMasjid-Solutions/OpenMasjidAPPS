@@ -59,12 +59,12 @@
       "stripe": true,
       "domain": true,
       "https": true,
+      "email": true,
       "fabric": {
         "consumes": [
           "students/billing"
         ]
       },
-      "email": true,
       "alerts": [
         {
           "id": "payment-failed",
@@ -118,13 +118,13 @@
       "stripe": true,
       "domain": true,
       "https": true,
+      "tunnel": true,
+      "email": true,
       "fabric": {
         "consumes": [
           "students/billing"
         ]
       },
-      "tunnel": true,
-      "email": true,
       "alerts": [
         {
           "id": "reader-offline",
@@ -180,6 +180,9 @@
       "stripe": true,
       "domain": true,
       "https": true,
+      "tunnel": true,
+      "email": true,
+      "whatsapp": true,
       "fabric": {
         "provides": [
           {
@@ -187,8 +190,6 @@
           }
         ]
       },
-      "tunnel": true,
-      "email": true,
       "alerts": [
         {
           "id": "autopay-disabled",

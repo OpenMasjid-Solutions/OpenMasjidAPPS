@@ -182,6 +182,7 @@ ports:
 #     - students/billing
 # tunnel: true                      # OPTIONAL — REQUEST internet exposure (admin confirms in Settings)
 # email: true                       # OPTIONAL — POST /api/fabric/email to send mail (see §7)
+# whatsapp: true                    # OPTIONAL — POST /api/fabric/whatsapp to send WhatsApp (see §7)
 # alerts:                           # OPTIONAL — admin gets a granular on/off per alert (see §7)
 #   - id: reader-offline            #   kebab id you POST to /api/fabric/alert
 #     label: Card reader offline
@@ -518,6 +519,45 @@ POST ${OPENMASJID_BASE_URL}/api/fabric/email
 
 **Fail soft**: `not_configured` just means the admin hasn't set up email — keep working (record the
 donation, show the receipt on screen). Rate-limited per app. Server→server, LAN-only, not CORS-enabled.
+
+### Sending WhatsApp — opt in with `whatsapp: true` *(platform v0.50.4+)*
+
+The masjid installs the **`openwa`** app (OpenWA, MIT, self-hosted) from the App Store and links a
+number in Settings → WhatsApp. Set `whatsapp: true` and your **backend** asks the platform to send;
+you never see the gateway, its key, or the linked number.
+
+```
+POST ${OPENMASJID_BASE_URL}/api/fabric/whatsapp
+  X-OpenMasjid-App-Secret: <OPENMASJID_APP_SECRET>
+  Content-Type: application/json
+  { "to": "+447700900123", "text": "Fees for this term are now due." }
+→ 202 { "queued": true }  |  { "queued": false, "reason": "not_configured" | "rate_limited" | … }
+```
+
+**Read the platform's `docs/WHATSAPP.md` before you build on this** — it is the normative contract.
+The rules that catch people out:
+
+- **`202 {queued: true}` NEVER means sent.** The platform holds one paced queue and may deliver
+  minutes later, or during quiet hours, not at all until morning. Do not block a user flow on it.
+- **One recipient per call.** No bulk arrays — the pacing is the point.
+- **Never anything auth-critical.** No OTPs, no password resets, no payment confirmations that a
+  user is waiting on. Keep email or SMS for those.
+- **Recipients must have opted in.** Messaging people who never asked to hear from you is the single
+  most reliable way to get the masjid's number restricted.
+
+**Why the platform owns the queue.** WhatsApp does not officially permit this: OpenWA is an
+unofficial client and **a linked number can be restricted or banned.** That risk belongs to the
+*number*, not to any one app — if three apps each send "politely" at the same moment, WhatsApp still
+sees one number emitting a burst. So every message from every app and the OS itself goes through a
+single serialised, jittered, warm-up-ramped, quiet-hours-aware queue. Your app cannot opt out of it,
+and should not want to.
+
+**Groups need no extra manifest key.** Send `group` instead of `to`, using an id from
+`GET /api/fabric/whatsapp/groups`. The admin approves which groups apps may post to in Settings, so
+the approved list is read at runtime and `whatsapp: true` covers both cases.
+
+**Fail soft**: `not_configured` means the masjid has no gateway — keep working and fall back to
+email or on-screen. Rate-limited per app. Server→server, LAN-only, not CORS-enabled.
 
 ### Raising admin alerts — declare them with `alerts:` *(platform v0.41.0+)*
 

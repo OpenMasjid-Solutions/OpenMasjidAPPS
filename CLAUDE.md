@@ -142,6 +142,7 @@ OpenMasjidOS repo.**
    | `notifications` | – | `true` to opt into Fabric notifications (§7b) — the app may POST `/api/fabric/notify` to relay messages to the masjid's configured webhook (Slack/Discord/generic). Omit/false = no notifications. |
    | `whatsapp` | – | `true` to opt into Fabric WhatsApp (§7b) — the app may POST `/api/fabric/whatsapp` and the platform sends through the masjid's own `openwa` gateway, on one paced queue shared by every app. The app never sees the gateway, its key, or the linked number. Covers group posting too (the admin approves groups in Settings), so there is **no** `groups` key. Omit/false = no WhatsApp. |
    | `https` | – | **Set this ONLY if your app uses Stripe.** Stripe's in-person M2 reader (Stripe Terminal SDK) and in-page card fields (Elements) both require a secure context (HTTPS). When `true`, the platform serves your app over HTTPS on a dedicated port (TLS-terminated with the dashboard's cert) and the "Open" URL becomes `https://`. **Every non-Stripe app must omit this** — it stays on plain HTTP. |
+   | `commands` | – | Admin commands a masjid admin runs by messaging the masjid's WhatsApp number (`!<app-id>`). A list of `{id, label, description?, argument?{label, required?}, confirm?}`, max 12. Validated by `scripts/commands.mjs`, which **mirrors OpenMasjidOS `parseCommands`** — keep them in step or "passes the build" stops meaning "installs cleanly". Declaring it alone issues the app its Fabric secret. `commands` is a **reserved** `fabric.provides` capability (same handler, different trust boundary), and the app ids `os` `omos` `openmasjid` `openmasjidos` `platform` `help` are refused because a command's namespace is the app id. |
    | `comingSoon` | – | Set by the registry's `coming_soon:` list, **not** by app authors. Marks a teaser entry with no repo/compose; the App Store shows a "Coming soon" badge and won't install it. |
 
 4. **Install mechanics** (from `packages/core/src/apps/manager.ts`): on install the platform
@@ -656,6 +657,8 @@ OpenMasjidAPPS/
 ├── scripts/channels.mjs           # the channel model: ref rules + the dev-artifact gate (§3b)
 ├── scripts/capabilities.mjs       # the ONE list of boolean Fabric capabilities the entry copies
 │                                  #   — a capability missing here is a silent 403 in an app's repo
+├── scripts/commands.mjs           # `commands:` validation — a MIRROR of the platform's
+│                                  #   parseCommands; drift here surfaces at a masjid's install
 ├── scripts/registry-validate.mjs  # registry + manifest validation (unit-testable)
 ├── scripts/validate-compose.mjs   # the compose safety gate — lockstep with the platform (§10)
 ├── scripts/lint.mjs               # syntax, SPDX headers, platform contract, channel hygiene

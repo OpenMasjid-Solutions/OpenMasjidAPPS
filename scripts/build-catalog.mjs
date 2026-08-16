@@ -29,6 +29,7 @@ import { parse } from 'yaml';
 import { validateCompose } from './validate-compose.mjs';
 import { validateSource, rawBase, validateManifestFields } from './registry-validate.mjs';
 import { capabilityFields, capabilityProblems } from './capabilities.mjs';
+import { parseCommands, isReservedAppId, COMMANDS_CAPABILITY, RESERVED_APP_ID_WORDS } from './commands.mjs';
 import {
   resolveChannel,
   isStableRef,
@@ -138,6 +139,13 @@ function parseFabricManifest(id, fabric) {
       if (typeof cap !== 'string' || !CAPABILITY_RE.test(cap)) {
         fail(`${id}: each fabric.provides entry needs a kebab-case "capability" (a-z, 0-9, -)`);
       }
+      // Refused unconditionally, exactly as the platform does — NOT only when the app
+      // also declares `commands:`. Refusing only the both-at-once case would let a
+      // manifest pass the catalog build and then fail at install, which is the one
+      // divergence this mirror exists to prevent.
+      if (cap === COMMANDS_CAPABILITY) {
+        fail(`${id}: "${COMMANDS_CAPABILITY}" is reserved for admin commands — declare them under "commands:", not fabric.provides. Both are served at /fabric/commands/run, but fabric.provides would expose that admin-only handler to any app that consumes "${id}/${COMMANDS_CAPABILITY}"`);
+      }
       provides.push(cap);
     }
   }
@@ -156,6 +164,18 @@ function parseFabricManifest(id, fabric) {
   if (provides.length) out.provides = provides.map((capability) => ({ capability }));
   if (consumes.length) out.consumes = consumes;
   return out;
+}
+
+// Validate + normalise a manifest `commands:` list — the admin commands a masjid admin
+// runs by messaging the masjid's WhatsApp number (`!students`, `!display 2`). The rules
+// live in scripts/commands.mjs, which mirrors OpenMasjidOS parseCommands and carries
+// the reasoning; here we only translate its throw into the build's fail().
+function parseCommandsManifest(id, commands) {
+  try {
+    return parseCommands(commands, id);
+  } catch (e) {
+    fail(`${id}: ${e.message}`);
+  }
 }
 
 // Validate + normalise a manifest `alerts:` list (the granular admin-alert types).
@@ -413,6 +433,12 @@ for (const entry of entries) {
   const { id, repo, ref, path, commit, sha, dev_ref: devRef } = entry || {};
   if (!id || !repo) fail(`registry entry is missing "id" or "repo": ${JSON.stringify(entry)}`);
   if (!APP_ID_RE.test(id)) fail(`${id}: invalid id — use kebab-case (a-z, 0-9, -), max 80 chars`);
+  // A command's namespace IS the app id, so an app called `os` would shadow `!os` in
+  // the masjid's WhatsApp chat. OpenMasjidOS refuses these at install; refuse them
+  // here so such an entry can never reach a masjid in the first place.
+  if (isReservedAppId(id)) {
+    fail(`${id}: this id names the platform, not an app — it would shadow "!${id}" in the WhatsApp admin commands. Reserved: ${[...RESERVED_APP_ID_WORDS].join(', ')}`);
+  }
   if (seen.has(id)) fail(`duplicate id in registry: ${id}`);
   seen.add(id);
 
@@ -584,6 +610,7 @@ for (const entry of entries) {
   // exactly how `whatsapp` went missing and cost apps a 403 they could not diagnose.
   for (const problem of capabilityProblems(m)) fail(`${id}: ${problem}`);
   const alerts = parseAlertsManifest(id, m.alerts);
+  const commands = parseCommandsManifest(id, m.commands);
 
   // The compose text is embedded verbatim into catalog.json, which every masjid
   // fetches. A real one is well under 10 KB; anything near the fetch ceiling is a
@@ -647,6 +674,10 @@ for (const entry of entries) {
     // Alert types this app can raise (POST /api/fabric/alert); the admin gets a
     // granular on/off per alert in Settings → Alerts. Also not a boolean.
     alerts,
+    // Admin commands a masjid admin runs by messaging the masjid's WhatsApp number.
+    // Declaring these alone issues the app its Fabric secret — no other capability
+    // needed, exactly as `alerts:` already does.
+    commands,
     compose: composeText,
   });
   // On a fallback the published version IS the stable one, so the floor holds by

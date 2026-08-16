@@ -29,8 +29,14 @@ const REPO = join(HERE, '..', '..');
 /**
  * The capabilities as an APP AUTHOR meets them: the commented manifest template in
  * docs/BUILDING_AN_APP.md §3, which is what people copy. Keys are declared there as
- * `# <key>: true`. Non-boolean opt-ins (`fabric:`, `alerts:`) do not match that
- * shape, which is what we want — they are carried separately by the builder.
+ * `# <key>: true`. Non-boolean opt-ins (`fabric:`, `alerts:`, `commands:`) do not
+ * match that shape, which is what we want — they are carried separately.
+ *
+ * TOP-LEVEL ONLY. The key must sit at column 0 of the YAML, i.e. `# key: true` with
+ * at most one space after the comment marker. Nested lines inside a block — a
+ * command's `confirm: true`, an argument's `required: false` — are indented further
+ * and are NOT capabilities. Matching them made this test demand that `confirm` be
+ * copied into every catalog entry, which is how it was caught.
  */
 function documentedBooleanCapabilities() {
   const md = readFileSync(join(REPO, 'docs', 'BUILDING_AN_APP.md'), 'utf8');
@@ -38,7 +44,7 @@ function documentedBooleanCapabilities() {
   assert.notEqual(start, -1, 'BUILDING_AN_APP.md no longer has a "## 3. `manifest.yaml` template" section — this test navigates by that heading');
   const end = md.indexOf('\n## ', start + 1);
   const section = md.slice(start, end === -1 ? undefined : end);
-  const keys = [...section.matchAll(/^#?\s*([a-z][a-z0-9_]*):\s*true\b/gm)].map((m) => m[1]);
+  const keys = [...section.matchAll(/^#? ?([a-z][a-z0-9_]*):[ \t]*true\b/gm)].map((m) => m[1]);
   return [...new Set(keys)];
 }
 
@@ -60,6 +66,16 @@ test('THE CLASS: every capability documented in BUILDING_AN_APP.md §3 survives 
       `will read them as "never asked" and answer 403: ${dropped.join(', ')}. Add them to BOOLEAN_CAPABILITIES ` +
       `in scripts/capabilities.mjs.`,
   );
+});
+
+test('the scraper reads top-level keys only, not the insides of a commands: or alerts: block', () => {
+  // Regression: `commands:` documents a nested `confirm: true` and `required: false`.
+  // A looser scrape treated `confirm` as a capability and demanded the builder copy
+  // it into every entry.
+  const documented = documentedBooleanCapabilities();
+  for (const nested of ['confirm', 'required', 'capability']) {
+    assert.equal(documented.includes(nested), false, `"${nested}" is a field inside a block, not a capability`);
+  }
 });
 
 test('THE CLASS, other direction: nothing is wired that the docs never told an author about', () => {

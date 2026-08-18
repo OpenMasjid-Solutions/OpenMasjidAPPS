@@ -45,6 +45,7 @@ single [`catalog.json`](./catalog.json) the platform fetches to populate its App
 | **[OpenMasjid Donations](https://github.com/OpenMasjid-Solutions/OpenMasjidDonations)** | `donations` | Card donations on the masjid's network with Stripe — appeals, Zakat, Gift Aid, monthly plans, receipts |
 | **[OpenMasjid Kiosk](https://github.com/OpenMasjid-Solutions/OpenMasjidKiosk)** | `donations` | Tap-to-donate kiosk for a wall-mounted tablet with a Stripe reader |
 | **[OpenMasjid Students](https://github.com/OpenMasjid-Solutions/OpenMasjidStudents)** | `admin` | Tuition & fees for a madrasa — pay online, at the kiosk, or in person |
+| **[OpenMasjid WA](https://github.com/OpenMasjid-Solutions/OpenMasjidWA)** | `utilities` | A WhatsApp number the masjid can send from — packaging for [OpenWA](https://github.com/rmyndharis/OpenWA) (MIT), run unmodified |
 
 Categories are exactly: `displays` `donations` `community` `quran` `admin` `utilities`.
 
@@ -103,7 +104,9 @@ in the app's `manifest.yaml` — each one optional, backwards-compatible, and of
 | `stripe: true` | Fetches shared Stripe keys from the OS vault (`GET /api/fabric/stripe`) instead of each app storing its own. |
 | `domain: true` | Learns its own public URL (`GET /api/fabric/site`) for absolute links — Stripe return URLs, webhooks, QR codes. |
 | `email: true` | Sends mail (receipts, parent notices) through the admin's provider via `POST /api/fabric/email` — the app never sees the mail credentials. |
+| `whatsapp: true` | Sends WhatsApp through the masjid’s own gateway via `POST /api/fabric/whatsapp` — the app never sees the gateway, its key, or the linked number. Queues on **one paced queue shared by every app**; `202 {queued}` never means sent. Group posting is included (the admin approves which groups), so there is no separate flag. |
 | `alerts: [...]` | Declares named alert types it can raise (`POST /api/fabric/alert`); the admin gets a granular on/off per alert. |
+| `commands: [...]` | Declares admin commands a masjid admin runs by messaging the masjid’s WhatsApp number (`!<app-id>`). The platform decides who may run what, renders the menu and confirms; the app just executes. Declaring it alone issues the app its secret. |
 | `fabric: {provides, consumes}` | App-to-app broker: serve a capability, or call another app's, brokered by the platform. |
 | `tunnel: true` | *Requests* internet exposure through the OS's Cloudflare tunnel — the admin still confirms per app. Off ⇒ LAN only. |
 | `https: true` | **Stripe apps only.** Stripe's reader SDK and in-page card fields need a secure context, so the platform serves the app over HTTPS on a dedicated port. |
@@ -114,8 +117,10 @@ viewer the platform admin?"), never as a credential to call the platform's admin
 Full normative contract: [docs/BUILDING_AN_APP.md §7](./docs/BUILDING_AN_APP.md) and
 [`CLAUDE.md` §7b](CLAUDE.md).
 
-All four listed apps opt into `sso`, `notifications`, `domain` and `https`; three use `stripe`,
-`email`, `alerts` and the app-to-app broker.
+Of the five listed apps, the four masjid-facing ones opt into `sso`, `notifications`, `domain` and
+`https`; three use `stripe`, `email`, `alerts` and the app-to-app broker; and `students` is the
+first to use `whatsapp`. **`openwa` opts into nothing** — it is the gateway the platform calls *in*
+to, not an app that calls out, and it is deliberately never tunnelled.
 
 ## What the build refuses
 
@@ -132,7 +137,7 @@ the build is the gate. It **fails** — not warns — on any of:
 - **An unsafe registry entry.** A `..` segment or URL punctuation in `repo`/`ref`/`dev_ref`/`path`
   would redirect a commit-pinned entry at a different repository while still looking pinned.
 - **A manifest that breaks the platform contract.** Wrong types, over-long fields, a bad `id`,
-  an unknown category, malformed `settings`/`ports`/`fabric`/`alerts`, or an icon path that isn't
+  an unknown category, malformed `settings`/`ports`/`fabric`/`alerts`/`commands`, or an icon path that isn't
   inside the app's repo.
 - **Development content on the stable channel.** A branch in `ref`, or a dev-tagged image anywhere in
   the compose.
@@ -141,7 +146,7 @@ Supply-chain hardening (it **warns** on these, so a maintainer sees them without
 already shipped):
 
 - **Immutable pins.** Registry entries pin a 40-char `commit:` SHA, not a movable tag — a tag can be
-  repointed at backdoored content and the unattended daily rebuild would republish it. A mutable ref
+  repointed at backdoored content and the unattended hourly rebuild would republish it. A mutable ref
   is resolved to the SHA it currently points at and warned about.
 - **Digest-pinned images.** `image: …:1.2.3@sha256:…`, because a tag can be moved to a different
   image while the version string looks unchanged. The dev channel is **not** exempt: a dev entry
@@ -155,7 +160,7 @@ already shipped):
 npm install
 npm run build                      # regenerate catalog.json for this branch's channel
 npm run build -- --channel main    # or state it (main | dev)
-npm test                           # 180 unit tests, zero test dependencies (node:test)
+npm test                           # 249 unit tests, zero test dependencies (node:test)
 npm run lint                       # syntax, SPDX headers, platform contract, channel hygiene
 npm run check                      # lint + tests — run before every commit
 ```
@@ -165,6 +170,8 @@ registry.yaml                  the app list, both channels (the only hand-edited
 catalog.json                   GENERATED — what the platform fetches; never hand-edit
 scripts/build-catalog.mjs      registry → catalog.json
 scripts/channels.mjs           the channel model: ref rules + the dev-artifact gate
+scripts/capabilities.mjs       the ONE list of boolean Fabric capabilities an entry carries
+scripts/commands.mjs           `commands:` validation, mirroring the platform's own parser
 scripts/validate-compose.mjs   the compose safety gate (lockstep with the platform)
 scripts/registry-validate.mjs  registry + manifest validation
 scripts/lint.mjs               dependency-free static checks
@@ -208,10 +215,11 @@ from anything here.
 ## Maintainers — catalog auto-publish (`CATALOG_PUSH_TOKEN`)
 
 The **Build catalog** workflow (`.github/workflows/build-catalog.yml`) regenerates and commits
-`catalog.json` on every push to `registry.yaml`/`scripts/`, on a daily schedule, and on manual /
+`catalog.json` on every push to `registry.yaml`/`scripts/`, on an hourly schedule, and on manual /
 `repository_dispatch` runs.
 
-It runs **one matrix leg per channel**. A push publishes only the branch that was pushed; cron,
+It runs **one matrix leg per channel**. A push to `dev` publishes `dev` only; a push to `main`
+publishes `main` **and** `dev`, because a stable release invalidates the dev catalog. Cron,
 manual runs and `repository_dispatch` refresh **both** `main` and `dev` (pass `channel: main|dev|both`
 to narrow it). Each leg checks out its own branch, builds that channel, and pushes with an explicit
 refspec after asserting `HEAD` matches — so a dev build cannot commit to `main`, or the reverse.

@@ -5,9 +5,11 @@ authoritative contract) and [docs/BUILDING_AN_APP.md](./docs/BUILDING_AN_APP.md)
 
 ## What this repo accepts
 
-- **Listing an app:** a PR adding an entry to [`registry.yaml`](./registry.yaml). Your app lives in
-  its **own** public repo and must meet the requirements in CLAUDE.md §4 and the **Security
-  requirements** in docs/BUILDING_AN_APP.md §2b (digest-pinned image, least-privilege compose, etc.).
+- **Listing an app:** a PR adding an entry to [`registry.yaml`](./registry.yaml), **opened against
+  `dev`** — never `main`. Your app lives in its **own** public repo and must meet the requirements
+  in CLAUDE.md §4 and the **Security requirements** in docs/BUILDING_AN_APP.md §2b (digest-pinned
+  image, least-privilege compose, etc.). One entry carries both channels: `ref`/`commit` is the
+  stable release tag, `dev_ref` an optional branch for the development channel.
 - **Tooling/docs/examples:** improvements to the build script, docs, or the reference apps under
   `examples/`.
 
@@ -24,6 +26,9 @@ platform" — don't weaken these checks.
   an SPDX header to new source files:
   - `.js` / `.mjs` / `.ts`: `// SPDX-License-Identifier: AGPL-3.0-only`
   - `.yml` / `.yaml` / `Dockerfile` / `.sh`: `# SPDX-License-Identifier: AGPL-3.0-only`
+  - `.md` / `.html`: `<!-- SPDX-License-Identifier: AGPL-3.0-only -->`
+
+  `npm run lint` checks this, so a missing header fails CI rather than review.
 - **The CLA covers contributions to *this* repo only.** Apps in their **own** repos — including any
   app merely **listed** in `registry.yaml` — keep **their own** license (the manifest `license`
   field). The CLA does **not** reach across the arm's-length container boundary, so listing your app
@@ -40,5 +45,7 @@ platform" — don't weaken these checks.
 - **Never** copy app manifests, compose files, icons, or assets from umbrelOS / `umbrel-apps`
   (PolyForm Noncommercial) or CasaOS stores. Author originals.
 - Keep `catalog.json` **generated** — edit `registry.yaml` (or your app repo) and run `npm run build`;
-  never hand-edit `catalog.json`.
+  never hand-edit `catalog.json`. It is one channel per branch, so a `dev` → `main` conflict in it is
+  resolved by **rebuilding** with `--channel main`, never by choosing a side.
+- Run `npm run check` (lint + tests) before every commit; CI runs the same thing on every PR.
 - Be calm, dignified, and plain-spoken in user-facing text (see CLAUDE.md §11).

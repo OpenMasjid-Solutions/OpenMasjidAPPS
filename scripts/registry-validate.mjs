@@ -146,7 +146,13 @@ export const LIMITS = {
   description: 16 * 1024,
 };
 
-const SETTING_TYPES = new Set(['text', 'select', 'number', 'password', 'boolean']);
+// Mirrors the platform's SettingField union (OpenMasjidOS packages/core/src/apps/types.ts).
+// 'stripe-account' is a platform-aware picker: the OS renders a dropdown of the Stripe
+// accounts the admin configured in Settings -> Payments and passes the chosen account's
+// name as the value, so nobody re-types Stripe details in the install dialog. It was
+// documented in docs/BUILDING_AN_APP.md and supported by the platform, but missing here —
+// so an app that followed the documentation had its entry FAIL the build. (2026-08-18 audit)
+const SETTING_TYPES = new Set(['text', 'select', 'number', 'password', 'boolean', 'stripe-account']);
 // The platform writes answers to .env as KEY=VALUE, so a key must be a valid
 // environment-variable name.
 const ENV_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;

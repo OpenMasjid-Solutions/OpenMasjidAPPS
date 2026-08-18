@@ -23,6 +23,7 @@ import {
   isStableRef,
   looksLikeBranch,
   imageRefsIn,
+  isDevVersion,
   imageTagOf,
   isDevImageTag,
   isDevImageRef,
@@ -554,4 +555,88 @@ test('a resolved commit SHA never reads as dev — which is why the DECLARED ref
   // declared value. This test pins that reasoning.
   assert.deepEqual(findDevArtifacts({ ref: SHA, composeText: releaseCompose }), []);
   assert.equal(findDevArtifacts({ ref: 'dev', composeText: releaseCompose }).length, 1);
+});
+
+// ── APPS-022: imageRefsIn must PARSE, not grep ─────────────────────────────────
+// Found by the 2026-08-18 audit. Every caller of imageRefsIn is a gate — the
+// stable-channel leakage check, the dev-entry contract, the digest-pin warning — and a
+// line-anchored regex over YAML was wrong in both directions.
+
+test('APPS-022 a flow-style image is found (a missed dev tag would reach stable)', () => {
+  assert.deepEqual(imageRefsIn('services: {app: {image: "ghcr.io/o/r:dev"}}\n'), ['ghcr.io/o/r:dev']);
+});
+
+test('APPS-022 an "image:" line inside a block scalar is NOT invented', () => {
+  // This used to collect ghcr.io/evil/x:dev and could fail a build over an image no
+  // service references.
+  const text = [
+    'services:',
+    '  app:',
+    '    image: ghcr.io/o/r:1.0.0',
+    '    command: |',
+    '      echo "image: ghcr.io/evil/x:dev"',
+    '',
+  ].join('\n');
+  assert.deepEqual(imageRefsIn(text), ['ghcr.io/o/r:1.0.0']);
+});
+
+test('APPS-022 ordinary block style still works, in order', () => {
+  const text = 'services:\n  a:\n    image: ghcr.io/o/a:1.0.0\n  b:\n    image: ghcr.io/o/b:2.0.0\n';
+  assert.deepEqual(imageRefsIn(text), ['ghcr.io/o/a:1.0.0', 'ghcr.io/o/b:2.0.0']);
+});
+
+test('APPS-022 quotes are stripped and a digest is kept intact', () => {
+  const ref = 'ghcr.io/o/r:1.0.0@sha256:' + 'a'.repeat(64);
+  assert.deepEqual(imageRefsIn(`services:\n  app:\n    image: "${ref}"\n`), [ref]);
+});
+
+test('APPS-022 an unparseable compose falls back to the raw scan rather than seeing nothing', () => {
+  assert.deepEqual(imageRefsIn('services:\n  app:\n    image: ghcr.io/o/r:dev\n : : :\n  bad'), ['ghcr.io/o/r:dev']);
+});
+
+test('APPS-022 a document with no services map falls back rather than reporting no images', () => {
+  assert.deepEqual(imageRefsIn('x-other:\n  image: ghcr.io/o/r:dev\n'), ['ghcr.io/o/r:dev']);
+});
+
+test('APPS-022 a service with no image contributes nothing', () => {
+  assert.deepEqual(imageRefsIn('services:\n  a:\n    build: .\n  b:\n    image: ghcr.io/o/b:1.0.0\n'), ['ghcr.io/o/b:1.0.0']);
+});
+
+test('APPS-022 non-strings and empties are safe', () => {
+  for (const v of [null, undefined, 42, {}, []]) assert.deepEqual(imageRefsIn(v), []);
+  assert.deepEqual(imageRefsIn(''), []);
+});
+
+// ── APPS-023: an entry's VERSION marks dev content, not only its image tag ──────
+// Found by the 2026-08-18 audit. lint's stable leakage gate only inspected image
+// tags, so a DIGEST-PINNED dev entry passed a dev → main PR: there was no tag to
+// object to. openwa is exactly that shape — its image is an upstream RELEASE tag
+// pinned by digest, while the entry's own version is a prerelease.
+
+test('APPS-023 a prerelease version is dev content', () => {
+  for (const v of ['0.2.0-dev.6', '0.11.0-dev.1', '1.0.0-rc.1', '2.0.0-alpha']) {
+    assert.equal(isDevVersion(v), true, `${v} should be dev`);
+  }
+});
+
+test('APPS-023 a release version is not', () => {
+  for (const v of ['0.1.2', '1.0.0', '0.21.0', '10.20.30']) {
+    assert.equal(isDevVersion(v), false, `${v} should not be dev`);
+  }
+});
+
+test('APPS-023 an unparseable or missing version is not claimed to be dev', () => {
+  // "I cannot tell" must not read as "it is a dev build" — that would fail a stable
+  // release over a version string this repo does not own.
+  for (const v of [null, undefined, '', 'garbage', 'v1', {}, 42]) {
+    assert.equal(isDevVersion(v), false, `${JSON.stringify(v)} should not be dev`);
+  }
+});
+
+test('APPS-023 THE GAP: a digest-pinned dev entry has no dev TAG, so only the version betrays it', () => {
+  const compose = 'services:\n  app:\n    image: ghcr.io/rmyndharis/openwa:0.21.0@sha256:' + 'a'.repeat(64) + '\n';
+  const refs = imageRefsIn(compose);
+  assert.equal(refs.length, 1);
+  assert.equal(isDevImageRef(refs[0]), false, 'the image is a release tag — the image check finds nothing');
+  assert.equal(isDevVersion('0.2.0-dev.6'), true, 'the version is what catches it');
 });

@@ -301,3 +301,173 @@ test('empty and non-object documents do not throw', () => {
     assert.doesNotThrow(() => validateCompose(t), `threw on ${JSON.stringify(t)}`);
   }
 });
+
+// ── APPS-020: install-time interpolation in a safety-relevant position ──────────
+// Found by the 2026-08-18 audit. `validateCompose` reads the RAW compose, but Docker
+// interpolates `${VAR}` from the .env the platform writes at install — so
+// `privileged: ${HW:-true}` reached a masjid as `privileged: true` while this gate saw
+// the literal string and called it falsy. Confirmed with `docker compose config`.
+// The catalog cannot vouch for a value it never sees, so these are hard errors.
+
+test('APPS-020 interpolated privileged is rejected, not read as falsy', () => {
+  const r = validateCompose(`
+services:
+  app:
+    image: ghcr.io/o/r:1.0.0
+    privileged: \${ENABLE_HW:-true}
+`);
+  assert.ok(
+    r.errors.some((e) => e.includes('"privileged" is chosen at install time')),
+    `expected an interpolation error, got: ${JSON.stringify(r.errors)}`,
+  );
+});
+
+test('APPS-020 every host-namespace key is covered, not just privileged', () => {
+  for (const key of ['network_mode', 'pid', 'ipc', 'userns_mode', 'cgroup', 'uts', 'cgroup_parent']) {
+    const r = validateCompose(`
+services:
+  app:
+    image: ghcr.io/o/r:1.0.0
+    ${key}: \${SOMETHING:-host}
+`);
+    assert.ok(
+      r.errors.some((e) => e.includes(`"${key}" is chosen at install time`)),
+      `${key} was not flagged: ${JSON.stringify(r.errors)}`,
+    );
+  }
+});
+
+test('APPS-020 list-valued keys are covered too (cap_add, devices, security_opt, group_add)', () => {
+  for (const key of ['cap_add', 'devices', 'device_cgroup_rules', 'security_opt', 'group_add']) {
+    const r = validateCompose(`
+services:
+  app:
+    image: ghcr.io/o/r:1.0.0
+    ${key}:
+      - \${WANTED}
+`);
+    assert.ok(
+      r.errors.some((e) => e.includes(`"${key}" is chosen at install time`)),
+      `${key} was not flagged: ${JSON.stringify(r.errors)}`,
+    );
+  }
+});
+
+test('APPS-020 an interpolated volume is rejected — and the whole entry is quoted back', () => {
+  // The message must not try to split the entry on ":", because the default value
+  // contains one: "${DATA_DIR:-/}:/hostdata".
+  const r = validateCompose(`
+services:
+  app:
+    image: ghcr.io/o/r:1.0.0
+    volumes:
+      - \${DATA_DIR:-/}:/hostdata
+`);
+  const hit = r.errors.find((e) => e.includes('a volume is assembled at install time'));
+  assert.ok(hit, `expected a volume interpolation error, got: ${JSON.stringify(r.errors)}`);
+  assert.ok(hit.includes('${DATA_DIR:-/}:/hostdata'), `message should quote the whole entry, got: ${hit}`);
+});
+
+test('APPS-020 the long-form volume source is covered as well', () => {
+  const r = validateCompose(`
+services:
+  app:
+    image: ghcr.io/o/r:1.0.0
+    volumes:
+      - type: bind
+        source: \${HOST_DIR}
+        target: /data
+`);
+  assert.ok(r.errors.some((e) => e.includes('a volume is assembled at install time')), JSON.stringify(r.errors));
+});
+
+test('APPS-020 a top-level volume or network adopted at install time is rejected', () => {
+  const r = validateCompose(`
+services:
+  app:
+    image: ghcr.io/o/r:1.0.0
+volumes:
+  data:
+    name: \${EXISTING_VOLUME}
+networks:
+  net:
+    external: \${SHARE_IT}
+`);
+  assert.ok(r.errors.some((e) => e.includes('volume "data": "name" is chosen at install time')), JSON.stringify(r.errors));
+  assert.ok(r.errors.some((e) => e.includes('network "net": "external" is chosen at install time')), JSON.stringify(r.errors));
+});
+
+test('APPS-020 interpolation stays LEGAL where a masjid\'s answers are meant to go', () => {
+  // environment, label values and ports are the whole mechanism by which install-time
+  // settings reach the container. Breaking these would break every real app.
+  const r = validateCompose(`
+services:
+  app:
+    image: ghcr.io/o/r:1.0.0@sha256:${'b'.repeat(64)}
+    environment:
+      - MASJID_NAME=\${MASJID_NAME}
+      - API_KEY=\${OPENWA_API_KEY}
+    labels:
+      com.example.site: \${SITE}
+    ports:
+      - "\${HOST_PORT:-8080}:80"
+    mem_limit: \${MEM:-2g}
+    volumes:
+      - app-data:/data
+volumes:
+  app-data:
+`);
+  assert.deepEqual(r.errors, [], `legitimate interpolation must pass: ${JSON.stringify(r.errors)}`);
+});
+
+// ── APPS-021: a merge key written in FLOW style ─────────────────────────────────
+// The detector was a line-anchored regex, so `services: {app: {<<: *tpl}}` slipped
+// past it — and `yaml` parses with merging OFF, so the merged keys were invisible to
+// the structured checks too. Detected structurally now: "<<" survives as a literal key.
+
+test('APPS-021 a flow-style merge key is rejected', () => {
+  const r = validateCompose(`
+x-tpl: &tpl
+  privileged: true
+services: {app: {<<: *tpl, image: "ghcr.io/o/r:1.0.0"}}
+`);
+  assert.ok(r.errors.some((e) => e.includes('YAML merge key')), JSON.stringify(r.errors));
+});
+
+test('APPS-021 a merge nested deep inside a flow mapping is still found', () => {
+  const r = validateCompose(`
+x-a: &a {cap_add: [SYS_ADMIN]}
+services:
+  app:
+    image: ghcr.io/o/r:1.0.0
+    deploy: {resources: {limits: {<<: *a}}}
+`);
+  assert.ok(r.errors.some((e) => e.includes('YAML merge key')), JSON.stringify(r.errors));
+});
+
+test('APPS-021 block-style merges are still rejected (no regression)', () => {
+  const r = validateCompose(`
+x-tpl: &tpl
+  image: ghcr.io/o/r:1.0.0
+services:
+  app:
+    <<: *tpl
+`);
+  assert.ok(r.errors.some((e) => e.includes('YAML merge key')), JSON.stringify(r.errors));
+});
+
+test('APPS-021 an unparseable compose still reports a merge key from the raw scan', () => {
+  const r = validateCompose('services:\n  app:\n    <<: *tpl\n  : : :\n   bad');
+  assert.ok(r.errors.some((e) => e.includes('YAML merge key')), JSON.stringify(r.errors));
+});
+
+test('APPS-021 a compose with no merge key is not flagged', () => {
+  const r = validateCompose(`
+services:
+  app:
+    image: ghcr.io/o/r:1.0.0
+    environment:
+      - SHIFT=<<never>>
+`);
+  assert.equal(r.errors.some((e) => e.includes('YAML merge key')), false, JSON.stringify(r.errors));
+});

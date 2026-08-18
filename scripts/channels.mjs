@@ -20,6 +20,7 @@
  * directly, with no deploy step in between — so leakage there ships unreleased
  * images to real masjids. Everything below exists to make that detectable.
  */
+import { parse } from 'yaml';
 
 export const CHANNELS = ['main', 'dev'];
 export const DEFAULT_CHANNEL = 'main';
@@ -212,17 +213,62 @@ export function devVersionIsAcceptable(devVersion, stableVersion) {
   return cmp >= 0;
 }
 
+/**
+ * Does this version string identify a DEVELOPMENT build?
+ *
+ * A dev entry is required to carry a semver prerelease (`X.Y.Z-dev.N`, §3b), so the
+ * prerelease suffix — not the image tag — is the authoritative marker of dev content.
+ * That matters because an entry can be digest-pinned, which leaves the image ref with
+ * no tag to inspect at all: the leakage gate would then find nothing to object to
+ * while the entry itself still announces a prerelease to every masjid.
+ */
+export function isDevVersion(version) {
+  return parseVersion(version)?.prerelease != null;
+}
+
 // --- images ---------------------------------------------------------------
 
-/** Every `image:` value in a compose file, in order. */
+/**
+ * Every `image:` value in a compose file, in order.
+ *
+ * PARSED, not grepped. A line-anchored regex over YAML gets this wrong in both
+ * directions, and every caller of this function is a gate:
+ *
+ *   - MISSES real images — `services: {app: {image: "ghcr.io/o/r:dev"}}` (flow style),
+ *     or an image written on a continuation line. A missed image is a dev tag that
+ *     walks straight onto the stable channel.
+ *   - INVENTS images that do not exist — an `image:` line inside a block scalar
+ *     (a `command: |` or a comment-like literal) was collected as if it were a
+ *     service's image, which can fail a build for an image nobody references.
+ *
+ * The regex survives as the parse-failure fallback: validate-compose.mjs refuses an
+ * unparseable compose anyway, so a document that lands here without parsing is being
+ * rejected for other reasons — but a leakage gate should still see what it can.
+ */
 export function imageRefsIn(composeText) {
   const out = [];
   if (typeof composeText !== 'string') return out;
+  try {
+    const doc = parse(composeText);
+    const services = doc && typeof doc.services === 'object' && !Array.isArray(doc.services) ? doc.services : null;
+    if (services) {
+      for (const svc of Object.values(services)) {
+        if (svc && typeof svc === 'object' && !Array.isArray(svc) && svc.image != null) {
+          const ref = String(svc.image).trim();
+          if (ref) out.push(ref);
+        }
+      }
+      return out;
+    }
+    // Parsed, but there is no services map to read — fall through to the raw scan
+    // rather than silently reporting "no images at all".
+  } catch {
+    // Unparseable — fall through.
+  }
   const re = /^[ \t]*image:[ \t]*["']?([^"'\s#]+)/gm;
   for (let m; (m = re.exec(composeText)); ) out.push(m[1]);
   return out;
 }
-
 /**
  * The tag part of an image reference, or null when there isn't one.
  *

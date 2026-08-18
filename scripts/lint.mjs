@@ -26,7 +26,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, extname, relative } from 'node:path';
 import { parse } from 'yaml';
-import { resolveChannel, isStableRef, isDevImageRef, imageTagOf, imageRefsIn } from './channels.mjs';
+import { resolveChannel, isStableRef, isDevImageRef, imageTagOf, imageRefsIn, isDevVersion } from './channels.mjs';
 import { validateSource } from './registry-validate.mjs';
 
 const ROOT = process.cwd();
@@ -145,6 +145,13 @@ try {
       }
       // 4 — the leakage gate. On the stable channel a dev-tagged image here would
       // be installed by every masjid the moment this file lands on main.
+      // An entry's own VERSION is the authoritative marker of dev content, and it is
+      // the one an image check cannot see: a digest-pinned dev entry has no tag to
+      // inspect, so the image loop below finds nothing while the entry still announces
+      // a prerelease to every masjid on the stable channel. (2026-08-18 audit)
+      if (enforceStable && isDevVersion(a.version)) {
+        fail(at, `version "${a.version}" is a prerelease — development versions must never ship on the stable channel. Rebuild with "npm run build -- --channel main".`);
+      }
       if (enforceStable && typeof a.compose === 'string') {
         for (const img of imageRefsIn(a.compose)) {
           if (img.includes('${')) continue;

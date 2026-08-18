@@ -61,7 +61,7 @@ const GRANT_RE = /^[a-z0-9][a-z0-9-]{0,79}\/[a-z0-9][a-z0-9-]{0,39}$/;
 // A full git commit SHA — 40 lowercase hex chars. Pinning a registry entry to one
 // of these is the ONLY immutable pin: tags and branches are mutable, so a repo
 // owner (or whoever compromises the repo) can move them to backdoored content and
-// the unattended daily rebuild (see .github/workflows/build-catalog.yml) will
+// the unattended hourly rebuild (see .github/workflows/build-catalog.yml) will
 // republish it under a previously-reviewed ref. A SHA cannot be moved.
 // Defined once in channels.mjs — the channel rules test the same shape, and two
 // copies of this regex would eventually disagree.
@@ -446,7 +446,7 @@ for (const entry of entries) {
   // Without this, a `..` segment in `path` silently redirected the entry to a
   // different repository while `repo`/`commit`, the review diff and the build log
   // all still named the pinned one — defeating the only integrity control the
-  // unattended daily rebuild has. See registry-validate.mjs. (APPS-001)
+  // unattended hourly rebuild has. See registry-validate.mjs. (APPS-001)
   const sourceProblems = validateSource({ repo, ref, path, dev_ref: devRef });
   if (sourceProblems.length) {
     fail(`${id}: unsafe registry entry:\n   - ${sourceProblems.join('\n   - ')}`);
@@ -795,5 +795,5 @@ writeFileSync('catalog.json', JSON.stringify({ apps: clean }, null, 2) + '\n');
 console.log(`✓ Built catalog.json with ${clean.length} app(s) for the ${channel} channel.`);
 if (warnings > 0) {
   // Surface, but don't fail — these are supply-chain hardening nudges, not errors.
-  console.warn(`⚠ ${warnings} security warning(s) above. Immutable commit-SHA pins (registry.yaml) and digest-pinned images are the integrity controls for the unattended daily rebuild.`);
+  console.warn(`⚠ ${warnings} security warning(s) above. Immutable commit-SHA pins (registry.yaml) and digest-pinned images are the integrity controls for the unattended hourly rebuild.`);
 }

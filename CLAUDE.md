@@ -460,10 +460,11 @@ script builds the channel it is told to and refuses to mix them. For each entry 
 
 Run locally: `npm install && npm run build [-- --channel main|dev]` (needs network — it fetches from
 GitHub). CI (`.github/workflows/build-catalog.yml`) rebuilds and commits `catalog.json` on
-registry/tooling changes, on a daily schedule, on manual dispatch, and on `repository_dispatch`
-(`rebuild-catalog`) so app repos can trigger a refresh when they release. A push publishes only the
-branch that was pushed; cron/dispatch refresh **both** channels as separate matrix legs, each of
-which can only commit to the branch it checked out.
+registry/tooling changes, on an hourly schedule, on manual dispatch, and on `repository_dispatch`
+(`rebuild-catalog`) so app repos can trigger a refresh when they release. A push to `dev` publishes
+`dev` only; a push to **`main` publishes `main` AND `dev`**, because a stable release invalidates the
+dev catalog (the freshness floor follows stable — §3b). Cron/dispatch refresh **both** channels.
+Every leg is a separate matrix job that can only commit to the branch it checked out.
 
 ---
 
@@ -490,7 +491,7 @@ ports:
   - container: 80
     label: Web interface
 # sso: true                       # OPTIONAL — opt into single sign-on (see §7b)
-# https: true                     # ONLY if your app uses Stripe (needs HTTPS); see §2b
+# https: true                     # ONLY if your app uses Stripe (needs HTTPS); see §2
 ```
 
 ---
@@ -508,7 +509,9 @@ Each item in `settings` (from `SettingField` in the platform):
 ```
 
 - `text`/`number`/`password` render an input; `select` renders a dropdown (needs `options`);
-  `boolean` a toggle.
+  `boolean` a toggle; `stripe-account` a dropdown of the Stripe accounts the admin configured in
+  Settings → Payments, passing the chosen account’s name as the value (so nobody re-types Stripe
+  details at install). The set mirrors the platform’s `SettingField` union exactly.
 - `key` should be a valid env-var name (UPPER_SNAKE_CASE recommended); it is what the user's answer
   is written as in `.env` and what `${KEY}` resolves to in the compose.
 - The platform writes `.env` as `KEY=VALUE` lines, so **keep values single-line** (no newlines).
@@ -593,7 +596,7 @@ namespace/cap/device/mount checks. When the platform adds a compose check, add t
 - **Digest-pin the image** with `@sha256:…` in the compose — pinning the tag alone is not enough,
   because a tag can be moved to repoint at a different (backdoored) image.
 - **Pin registry entries to an immutable `commit:` SHA**, not a mutable tag/branch — a moved ref can
-  smuggle backdoored content through the unattended daily rebuild. The build prints a ⚠ warning for
+  smuggle backdoored content through the unattended hourly rebuild. The build prints a ⚠ warning for
   any mutable ref or non-digest image (it warns, it does not fail).
 - **Treat any Fabric SSO/session value as an IDENTITY assertion** ("is the viewer the platform
   admin?") — never as a credential to call the platform's admin/tRPC API. The platform enforces an

@@ -261,3 +261,37 @@ mBad('an icon that traverses out of the repo', { name: 'A', version: '1', icon: 
 mBad('an absolute icon URL', { name: 'A', version: '1', icon: 'https://evil.example/x.svg' }, 'not a URL');
 mBad('screenshots as a string', { name: 'A', version: '1', screenshots: 'screenshots/1.svg' }, 'must be a list');
 mBad('a screenshot that traverses', { name: 'A', version: '1', screenshots: ['ok.svg', '../../x.svg'] }, '..');
+
+// ── APPS-024: the stripe-account setting type ──────────────────────────────────
+// Found by the 2026-08-18 audit. docs/BUILDING_AN_APP.md §7 tells a Stripe app author
+// to use `type: stripe-account`, and the platform's own SettingField union accepts it —
+// but SETTING_TYPES here did not, so an app that followed the documentation had its
+// entry FAIL the catalog build. The doc and the platform were right; this was stale.
+
+test('APPS-024 the documented stripe-account picker is accepted', () => {
+  const problems = validateManifestFields({
+    name: 'Donations',
+    version: '1.0.0',
+    settings: [{ key: 'STRIPE_ACCOUNT', label: 'OpenMasjidOS Stripe account', type: 'stripe-account' }],
+  });
+  assert.deepEqual(problems, []);
+});
+
+test('APPS-024 every type in the platform union is accepted, and nothing else', () => {
+  // The union is OpenMasjidOS packages/core/src/apps/types.ts SettingField.type.
+  for (const type of ['text', 'select', 'number', 'password', 'boolean', 'stripe-account']) {
+    const settings = [{ key: 'K', label: 'L', type, ...(type === 'select' ? { options: ['a'] } : {}) }];
+    assert.deepEqual(validateManifestFields({ name: 'X', version: '1.0.0', settings }), [], `${type} should be valid`);
+  }
+  const bad = validateManifestFields({ name: 'X', version: '1.0.0', settings: [{ key: 'K', label: 'L', type: 'stripe' }] });
+  assert.ok(bad.some((p) => p.includes('is unknown')), JSON.stringify(bad));
+});
+
+test('APPS-024 stripe-account needs no options list, unlike select', () => {
+  assert.deepEqual(
+    validateManifestFields({ name: 'X', version: '1.0.0', settings: [{ key: 'K', label: 'L', type: 'stripe-account' }] }),
+    [],
+  );
+  const sel = validateManifestFields({ name: 'X', version: '1.0.0', settings: [{ key: 'K', label: 'L', type: 'select' }] });
+  assert.ok(sel.some((p) => p.includes('needs a non-empty "options" list')), JSON.stringify(sel));
+});

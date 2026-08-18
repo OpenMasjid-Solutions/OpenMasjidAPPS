@@ -20,6 +20,7 @@
  * directly, with no deploy step in between — so leakage there ships unreleased
  * images to real masjids. Everything below exists to make that detectable.
  */
+import { parse } from 'yaml';
 
 export const CHANNELS = ['main', 'dev'];
 export const DEFAULT_CHANNEL = 'main';
@@ -212,17 +213,62 @@ export function devVersionIsAcceptable(devVersion, stableVersion) {
   return cmp >= 0;
 }
 
+/**
+ * Does this version string identify a DEVELOPMENT build?
+ *
+ * A dev entry is required to carry a semver prerelease (`X.Y.Z-dev.N`, §3b), so the
+ * prerelease suffix — not the image tag — is the authoritative marker of dev content.
+ * That matters because an entry can be digest-pinned, which leaves the image ref with
+ * no tag to inspect at all: the leakage gate would then find nothing to object to
+ * while the entry itself still announces a prerelease to every masjid.
+ */
+export function isDevVersion(version) {
+  return parseVersion(version)?.prerelease != null;
+}
+
 // --- images ---------------------------------------------------------------
 
-/** Every `image:` value in a compose file, in order. */
+/**
+ * Every `image:` value in a compose file, in order.
+ *
+ * PARSED, not grepped. A line-anchored regex over YAML gets this wrong in both
+ * directions, and every caller of this function is a gate:
+ *
+ *   - MISSES real images — `services: {app: {image: "ghcr.io/o/r:dev"}}` (flow style),
+ *     or an image written on a continuation line. A missed image is a dev tag that
+ *     walks straight onto the stable channel.
+ *   - INVENTS images that do not exist — an `image:` line inside a block scalar
+ *     (a `command: |` or a comment-like literal) was collected as if it were a
+ *     service's image, which can fail a build for an image nobody references.
+ *
+ * The regex survives as the parse-failure fallback: validate-compose.mjs refuses an
+ * unparseable compose anyway, so a document that lands here without parsing is being
+ * rejected for other reasons — but a leakage gate should still see what it can.
+ */
 export function imageRefsIn(composeText) {
   const out = [];
   if (typeof composeText !== 'string') return out;
+  try {
+    const doc = parse(composeText);
+    const services = doc && typeof doc.services === 'object' && !Array.isArray(doc.services) ? doc.services : null;
+    if (services) {
+      for (const svc of Object.values(services)) {
+        if (svc && typeof svc === 'object' && !Array.isArray(svc) && svc.image != null) {
+          const ref = String(svc.image).trim();
+          if (ref) out.push(ref);
+        }
+      }
+      return out;
+    }
+    // Parsed, but there is no services map to read — fall through to the raw scan
+    // rather than silently reporting "no images at all".
+  } catch {
+    // Unparseable — fall through.
+  }
   const re = /^[ \t]*image:[ \t]*["']?([^"'\s#]+)/gm;
   for (let m; (m = re.exec(composeText)); ) out.push(m[1]);
   return out;
 }
-
 /**
  * The tag part of an image reference, or null when there isn't one.
  *
@@ -278,6 +324,43 @@ export function isDevImageRef(imageRef) {
 
 /** A digest-pinned reference — the only pin a moved tag cannot subvert. */
 export const IMAGE_DIGEST_RE = /@sha256:[0-9a-f]{64}/;
+
+/** The catalog every masjid on the stable channel actually fetches (CLAUDE.md §2.1). */
+export const PUBLISHED_MAIN_CATALOG_URL =
+  'https://raw.githubusercontent.com/OpenMasjid-Solutions/OpenMasjidAPPS/main/catalog.json';
+
+/**
+ * Apps that would move BACKWARDS if `nextApps` replaced `previousApps`.
+ *
+ * The stable channel had no such guard. The freshness floor added in v0.2.0
+ * guarantees dev is never behind stable, but nothing checked that a new stable
+ * catalog is not behind the stable catalog it replaces — so a registry edit that
+ * lowered a pin would publish a downgrade to every masjid, silently and instantly.
+ *
+ * That nearly happened on 2026-08-13: three apps had been released by committing
+ * their registry bumps straight onto `main`, leaving `dev` pinning older tags, and
+ * the documented `dev` → `main` release would have taken donations back two
+ * releases, kiosk one and students four. It was caught by simulating the release by
+ * hand, which is not a control.
+ *
+ * Only compares apps present on BOTH sides: a newly listed app has nothing to
+ * regress from, and a delisted one is a deliberate registry edit (see the
+ * parking-attendant removal), not a downgrade. Entries whose versions cannot be
+ * compared are skipped rather than assumed equal.
+ */
+export function findVersionRegressions(nextApps, previousApps) {
+  const out = [];
+  if (!Array.isArray(nextApps) || !Array.isArray(previousApps)) return out;
+  const prev = new Map(previousApps.filter((a) => a && a.id).map((a) => [a.id, a]));
+  for (const a of nextApps) {
+    if (!a || !a.id || a.comingSoon === true) continue;
+    const p = prev.get(a.id);
+    if (!p || p.comingSoon === true) continue; // newly listed, or was only a teaser
+    const cmp = compareVersions(a.version, p.version);
+    if (cmp !== null && cmp < 0) out.push({ id: a.id, from: String(p.version), to: String(a.version) });
+  }
+  return out;
+}
 
 // --- the dev entry contract -----------------------------------------------
 

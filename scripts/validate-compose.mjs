@@ -99,6 +99,89 @@ function checkVolumeEntry(v, errors, warnings, where) {
   }
 }
 
+// A merge key hides configuration the structured checks would otherwise see, which
+// is why it is refused outright. Detecting it with a LINE regex only catches BLOCK
+// style: written inside a flow mapping — `services: {app: {<<: *tpl}}` — the "<<"
+// never starts a line. The `yaml` package parses with YAML-1.2 core-schema
+// semantics, where merging is OFF by default, so "<<" survives as a LITERAL KEY in
+// the parsed tree. Walking for that key catches every spelling at once.
+function findsMergeKey(node, depth = 0) {
+  if (depth > 100 || node == null || typeof node !== 'object') return false;
+  if (Array.isArray(node)) return node.some((v) => findsMergeKey(v, depth + 1));
+  for (const [k, v] of Object.entries(node)) {
+    if (k === '<<') return true;
+    if (findsMergeKey(v, depth + 1)) return true;
+  }
+  return false;
+}
+
+// Positions where an install-time ${VAR} would let an app choose something the
+// catalog has just promised a masjid it does not do. Compose interpolates these from
+// the .env the platform writes, so `privileged: ${HW:-true}` resolves to
+// `privileged: true` on the masjid's host while this validator sees only the literal
+// string "${HW:-true}" — which isTruthyFlag() correctly calls falsy, and
+// classifyVolumeSource() reads as a harmless named volume. Verified with
+// `docker compose config`: the resolved stack really does get privileged: true,
+// network_mode: host and a bind of "/".
+//
+// Interpolation stays legal where it is MEANT to be used — `environment:`, label
+// values and `ports:` — because that is the whole mechanism by which a masjid's
+// install-time answers reach the container.
+const UNSAFE_INTERP_KEYS = [
+  'privileged', 'network_mode', 'pid', 'ipc', 'userns_mode', 'cgroup', 'uts',
+  'cgroup_parent', 'env_file', 'cap_add', 'devices', 'device_cgroup_rules',
+  'security_opt', 'group_add', 'volumes_from', 'user',
+];
+const hasInterp = (v) => typeof v === 'string' && v.includes('${');
+function interpProblems(doc, errors) {
+  const services = doc && typeof doc.services === 'object' && !Array.isArray(doc.services) ? doc.services : {};
+  for (const [name, svcRaw] of Object.entries(services)) {
+    const svc = svcRaw && typeof svcRaw === 'object' && !Array.isArray(svcRaw) ? svcRaw : {};
+    for (const key of UNSAFE_INTERP_KEYS) {
+      const v = svc[key];
+      if (v == null) continue;
+      const values = Array.isArray(v) ? v : [v];
+      if (values.some(hasInterp)) {
+        errors.add(
+          'service "' + name + '": "' + key + '" is chosen at install time with ${...} — ' +
+            'the catalog cannot vouch for a value it never sees. Write the literal you mean.',
+        );
+      }
+    }
+    // A volume entry that is assembled at install time cannot be judged here at all:
+    // splitting "${DATA_DIR:-/}:/hostdata" on ":" does not even recover the source,
+    // because the default value contains one. So any interpolation anywhere in a
+    // volumes entry is refused, and the whole entry is quoted back.
+    const vols = Array.isArray(svc.volumes) ? svc.volumes : [];
+    for (const entry of vols) {
+      const shown = typeof entry === 'string' ? entry : entry && typeof entry === 'object' ? String(entry.source ?? '') : '';
+      const interp = typeof entry === 'string' ? hasInterp(entry) : entry && typeof entry === 'object' ? hasInterp(entry.source) : false;
+      if (interp) {
+        errors.add(
+          'service "' + name + '": a volume is assembled at install time with ${...} ("' +
+            shown + '") — it could resolve to any host path',
+        );
+      }
+    }
+  }
+  // A top-level volume or network that names or adopts something at install time
+  // escapes the "a listed app owns its storage" rule the same way.
+  for (const section of ['volumes', 'networks']) {
+    const block = doc && typeof doc[section] === 'object' && !Array.isArray(doc[section]) ? doc[section] : {};
+    for (const [name, defRaw] of Object.entries(block)) {
+      const def = defRaw && typeof defRaw === 'object' && !Array.isArray(defRaw) ? defRaw : {};
+      for (const key of ['name', 'external', 'driver']) {
+        if (hasInterp(def[key])) {
+          errors.add(
+            (section === 'volumes' ? 'volume "' : 'network "') + name + '": "' + key +
+              '" is chosen at install time with ${...}',
+          );
+        }
+      }
+    }
+  }
+}
+
 export function validateCompose(text) {
   const errors = new Set();
   const warnings = new Set();
@@ -110,9 +193,9 @@ export function validateCompose(text) {
   // attacker-controlled compose text (measured: 102ms at 20 KB, 6.4s at 160 KB,
   // ~4 min at 1 MB). The anchored form below is linear and matches the same
   // directive — a merge key can only be preceded by spaces/tabs on its line. (APPS-007)
-  if (/^[ \t]*<<[ \t]*:/m.test(text)) {
-    errors.add('uses a YAML merge key ("<<:") — merges config the safety check cannot see');
-  }
+  // Kept as the PARSE-FAILURE fallback only: when the document parses, the
+  // structural walk below is authoritative, because it also sees flow style.
+  let mergeSeen = /^[ \t]*<<[ \t]*:/m.test(text);
   if (/\/var\/run\/docker\.sock/.test(text)) {
     errors.add('references the Docker socket (/var/run/docker.sock)');
   }
@@ -120,6 +203,8 @@ export function validateCompose(text) {
   let doc;
   try {
     doc = parse(text) ?? {};
+    if (findsMergeKey(doc)) mergeSeen = true;
+    interpProblems(doc, errors);
   } catch (e) {
     // Couldn't parse — fall back to coarse regexes so we still reject the worst.
     const RAW = [
@@ -139,8 +224,11 @@ export function validateCompose(text) {
     ];
     for (const [re, why] of RAW) if (re.test(text)) errors.add(why);
     warnings.add(`compose did not parse as YAML (${e.message}); ran coarse checks only`);
+    if (mergeSeen) errors.add('uses a YAML merge key ("<<:") — merges config the safety check cannot see');
     return { errors: [...errors], warnings: [...warnings] };
   }
+
+  if (mergeSeen) errors.add('uses a YAML merge key ("<<:") — merges config the safety check cannot see');
 
   if (doc.include !== undefined) errors.add('top-level "include" merges config the safety check cannot see');
 

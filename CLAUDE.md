@@ -140,7 +140,9 @@ OpenMasjidOS repo.**
    | `ports` | – | Array of `{ container: number, label?: string }` — informational. |
    | `sso` | – | `true` to opt into single sign-on (§7b). The platform then issues the app a per-app secret at install and honours its `/api/auth/session` calls. Omit/false = no SSO. |
    | `notifications` | – | `true` to opt into Fabric notifications (§7b) — the app may POST `/api/fabric/notify` to relay messages to the masjid's configured webhook (Slack/Discord/generic). Omit/false = no notifications. |
+   | `whatsapp` | – | `true` to opt into Fabric WhatsApp (§7b) — the app may POST `/api/fabric/whatsapp` and the platform sends through the masjid's own `openwa` gateway, on one paced queue shared by every app. The app never sees the gateway, its key, or the linked number. Covers group posting too (the admin approves groups in Settings), so there is **no** `groups` key. Omit/false = no WhatsApp. |
    | `https` | – | **Set this ONLY if your app uses Stripe.** Stripe's in-person M2 reader (Stripe Terminal SDK) and in-page card fields (Elements) both require a secure context (HTTPS). When `true`, the platform serves your app over HTTPS on a dedicated port (TLS-terminated with the dashboard's cert) and the "Open" URL becomes `https://`. **Every non-Stripe app must omit this** — it stays on plain HTTP. |
+   | `commands` | – | Admin commands a masjid admin runs by messaging the masjid's WhatsApp number (`!<app-id>`). A list of `{id, label, description?, argument?{label, required?}, confirm?}`, max 12. Validated by `scripts/commands.mjs`, which **mirrors OpenMasjidOS `parseCommands`** — keep them in step or "passes the build" stops meaning "installs cleanly". Declaring it alone issues the app its Fabric secret. `commands` is a **reserved** `fabric.provides` capability (same handler, different trust boundary), and the app ids `os` `omos` `openmasjid` `openmasjidos` `platform` `help` are refused because a command's namespace is the app id. |
    | `comingSoon` | – | Set by the registry's `coming_soon:` list, **not** by app authors. Marks a teaser entry with no repo/compose; the App Store shows a "Coming soon" badge and won't install it. |
 
 4. **Install mechanics** (from `packages/core/src/apps/manager.ts`): on install the platform
@@ -302,6 +304,32 @@ This is also the one place a plain release version is legitimate on the dev chan
 fallback** entry carries the release version and the release image by definition, and the contract is
 not applied to it.
 
+### The stable channel must never move backwards
+
+The mirror of the freshness floor, on the other channel. Before writing `catalog.json`, a **stable**
+build fetches the catalog masjids are actually running and **fails** if any app would move backwards.
+
+It exists because on **2026-08-13** a `dev` → `main` release would have taken donations back two
+releases, kiosk one and students four. Three apps had been released by committing their registry
+bumps **straight onto `main`**, so `dev` still pinned the older tags; the documented release flow,
+followed exactly, would have published downgrades to every masjid. It was caught by simulating the
+release by hand, which is not a control.
+
+- **Stable only.** The dev channel legitimately moves backwards when an entry falls back to its
+  stable release, and the freshness floor already bounds it from below.
+- **Compares against the published artifact**, not the branch — what masjids have installed is the
+  only thing that matters. If it cannot be fetched the build warns and continues: refusing to
+  publish because GitHub blinked would be worse than the fault being guarded against.
+- **Apps present on both sides only.** A newly listed app has nothing to regress from; a delisted one
+  is a deliberate edit, not a downgrade.
+- **A deliberate rollback is a real operation** (`display: roll the catalog back to v0.61.0` has
+  happened), so it is overridable with `OPENMASJID_ALLOW_DOWNGRADE=1` — which must be stated, not
+  stumbled into.
+
+**The cure, not just the alarm: release bumps belong on `dev`.** Committing them to `main` is what
+desynchronises the branches in the first place. See §3b "Releasing" and
+[`docs/BUILDING_AN_APP.md` §8a](docs/BUILDING_AN_APP.md).
+
 **The one rule that must not break: no dev content on `main`.** `main/catalog.json` is production —
 the platform fetches that raw file with no build, deploy or staging step in between, so anything
 landing there is live to every masjid instantly. Three gates enforce it:
@@ -432,10 +460,11 @@ script builds the channel it is told to and refuses to mix them. For each entry 
 
 Run locally: `npm install && npm run build [-- --channel main|dev]` (needs network — it fetches from
 GitHub). CI (`.github/workflows/build-catalog.yml`) rebuilds and commits `catalog.json` on
-registry/tooling changes, on a daily schedule, on manual dispatch, and on `repository_dispatch`
-(`rebuild-catalog`) so app repos can trigger a refresh when they release. A push publishes only the
-branch that was pushed; cron/dispatch refresh **both** channels as separate matrix legs, each of
-which can only commit to the branch it checked out.
+registry/tooling changes, on an hourly schedule, on manual dispatch, and on `repository_dispatch`
+(`rebuild-catalog`) so app repos can trigger a refresh when they release. A push to `dev` publishes
+`dev` only; a push to **`main` publishes `main` AND `dev`**, because a stable release invalidates the
+dev catalog (the freshness floor follows stable — §3b). Cron/dispatch refresh **both** channels.
+Every leg is a separate matrix job that can only commit to the branch it checked out.
 
 ---
 
@@ -462,7 +491,7 @@ ports:
   - container: 80
     label: Web interface
 # sso: true                       # OPTIONAL — opt into single sign-on (see §7b)
-# https: true                     # ONLY if your app uses Stripe (needs HTTPS); see §2b
+# https: true                     # ONLY if your app uses Stripe (needs HTTPS); see §2
 ```
 
 ---
@@ -480,7 +509,9 @@ Each item in `settings` (from `SettingField` in the platform):
 ```
 
 - `text`/`number`/`password` render an input; `select` renders a dropdown (needs `options`);
-  `boolean` a toggle.
+  `boolean` a toggle; `stripe-account` a dropdown of the Stripe accounts the admin configured in
+  Settings → Payments, passing the chosen account’s name as the value (so nobody re-types Stripe
+  details at install). The set mirrors the platform’s `SettingField` union exactly.
 - `key` should be a valid env-var name (UPPER_SNAKE_CASE recommended); it is what the user's answer
   is written as in `.env` and what `${KEY}` resolves to in the compose.
 - The platform writes `.env` as `KEY=VALUE` lines, so **keep values single-line** (no newlines).
@@ -565,7 +596,7 @@ namespace/cap/device/mount checks. When the platform adds a compose check, add t
 - **Digest-pin the image** with `@sha256:…` in the compose — pinning the tag alone is not enough,
   because a tag can be moved to repoint at a different (backdoored) image.
 - **Pin registry entries to an immutable `commit:` SHA**, not a mutable tag/branch — a moved ref can
-  smuggle backdoored content through the unattended daily rebuild. The build prints a ⚠ warning for
+  smuggle backdoored content through the unattended hourly rebuild. The build prints a ⚠ warning for
   any mutable ref or non-digest image (it warns, it does not fail).
 - **Treat any Fabric SSO/session value as an IDENTITY assertion** ("is the viewer the platform
   admin?") — never as a credential to call the platform's admin/tRPC API. The platform enforces an
@@ -627,6 +658,10 @@ OpenMasjidAPPS/
 ├── package.json                   # dep: yaml; build / test / lint / check
 ├── scripts/build-catalog.mjs      # registry → catalog.json (fetches app repos)
 ├── scripts/channels.mjs           # the channel model: ref rules + the dev-artifact gate (§3b)
+├── scripts/capabilities.mjs       # the ONE list of boolean Fabric capabilities the entry copies
+│                                  #   — a capability missing here is a silent 403 in an app's repo
+├── scripts/commands.mjs           # `commands:` validation — a MIRROR of the platform's
+│                                  #   parseCommands; drift here surfaces at a masjid's install
 ├── scripts/registry-validate.mjs  # registry + manifest validation (unit-testable)
 ├── scripts/validate-compose.mjs   # the compose safety gate — lockstep with the platform (§10)
 ├── scripts/lint.mjs               # syntax, SPDX headers, platform contract, channel hygiene

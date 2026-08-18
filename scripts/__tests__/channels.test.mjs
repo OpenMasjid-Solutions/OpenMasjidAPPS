@@ -23,6 +23,7 @@ import {
   isStableRef,
   looksLikeBranch,
   imageRefsIn,
+  isDevVersion,
   imageTagOf,
   isDevImageTag,
   isDevImageRef,
@@ -31,6 +32,7 @@ import {
   compareVersions,
   devVersionIsAcceptable,
   devEntryProblems,
+  findVersionRegressions,
 } from '../channels.mjs';
 
 const SHA = 'a'.repeat(40);
@@ -374,6 +376,67 @@ test('THE INVARIANT: with no stable release there is nothing to be behind', () =
   assert.ok(devVersionIsAcceptable('anything', null));
 });
 
+// --- the stable regression gate -------------------------------------------
+
+const app = (id, version, extra = {}) => ({ id, version, ...extra });
+
+test('THE 2026-08-13 NEAR MISS: a stale registry would have moved three apps backwards', () => {
+  // What a dev → main release would have published that day, against what main was
+  // serving. Caught by simulating it; this test is so it cannot need simulating again.
+  const published = [app('display', '0.66.1'), app('donations', '0.42.0'), app('kiosk', '0.11.0'), app('students', '0.49.0')];
+  const next = [app('display', '0.67.0'), app('donations', '0.40.1'), app('kiosk', '0.10.2'), app('students', '0.45.1')];
+  const r = findVersionRegressions(next, published);
+  assert.deepEqual(r, [
+    { id: 'donations', from: '0.42.0', to: '0.40.1' },
+    { id: 'kiosk', from: '0.11.0', to: '0.10.2' },
+    { id: 'students', from: '0.49.0', to: '0.45.1' },
+  ]);
+  // display is an UPGRADE and must not be flagged.
+  assert.equal(r.find((x) => x.id === 'display'), undefined);
+});
+
+test('the release that actually shipped is clean', () => {
+  const published = [app('display', '0.66.1'), app('donations', '0.42.0'), app('kiosk', '0.11.0'), app('students', '0.49.0')];
+  const next = [app('display', '0.67.0'), app('donations', '0.42.0'), app('kiosk', '0.11.0'), app('students', '0.49.0')];
+  assert.deepEqual(findVersionRegressions(next, published), []);
+});
+
+test('unchanged versions are not regressions', () => {
+  assert.deepEqual(findVersionRegressions([app('a', '1.0.0')], [app('a', '1.0.0')]), []);
+});
+
+test('a newly listed app has nothing to regress from', () => {
+  assert.deepEqual(findVersionRegressions([app('a', '0.1.0'), app('b', '2.0.0')], [app('b', '2.0.0')]), []);
+});
+
+test('a delisted app is not a regression — it is a deliberate registry edit', () => {
+  // parking-attendant was removed on purpose; absence must not read as a downgrade.
+  assert.deepEqual(findVersionRegressions([app('a', '1.0.0')], [app('a', '1.0.0'), app('gone', '9.9.9')]), []);
+});
+
+test('coming-soon teasers are skipped on both sides', () => {
+  assert.deepEqual(findVersionRegressions([app('a', undefined, { comingSoon: true })], [app('a', '5.0.0')]), []);
+  assert.deepEqual(findVersionRegressions([app('a', '1.0.0')], [app('a', undefined, { comingSoon: true })]), []);
+});
+
+test('a prerelease replacing its release IS a regression', () => {
+  // 0.12.0-dev.1 is below 0.12.0 — publishing it on stable moves masjids backwards.
+  assert.deepEqual(findVersionRegressions([app('a', '0.12.0-dev.1')], [app('a', '0.12.0')]), [
+    { id: 'a', from: '0.12.0', to: '0.12.0-dev.1' },
+  ]);
+});
+
+test('an uncomparable version is skipped, not assumed equal or lower', () => {
+  assert.deepEqual(findVersionRegressions([app('a', 'rolling')], [app('a', '1.0.0')]), []);
+  assert.deepEqual(findVersionRegressions([app('a', '1.0.0')], [app('a', 'rolling')]), []);
+});
+
+test('findVersionRegressions copes with junk input', () => {
+  assert.deepEqual(findVersionRegressions(null, null), []);
+  assert.deepEqual(findVersionRegressions([], []), []);
+  assert.deepEqual(findVersionRegressions([null, app('a', '1.0.0')], [app('a', '1.0.0')]), []);
+});
+
 // --- the dev entry contract -----------------------------------------------
 
 const DIGEST = '@sha256:' + 'a'.repeat(64);
@@ -492,4 +555,88 @@ test('a resolved commit SHA never reads as dev — which is why the DECLARED ref
   // declared value. This test pins that reasoning.
   assert.deepEqual(findDevArtifacts({ ref: SHA, composeText: releaseCompose }), []);
   assert.equal(findDevArtifacts({ ref: 'dev', composeText: releaseCompose }).length, 1);
+});
+
+// ── APPS-022: imageRefsIn must PARSE, not grep ─────────────────────────────────
+// Found by the 2026-08-18 audit. Every caller of imageRefsIn is a gate — the
+// stable-channel leakage check, the dev-entry contract, the digest-pin warning — and a
+// line-anchored regex over YAML was wrong in both directions.
+
+test('APPS-022 a flow-style image is found (a missed dev tag would reach stable)', () => {
+  assert.deepEqual(imageRefsIn('services: {app: {image: "ghcr.io/o/r:dev"}}\n'), ['ghcr.io/o/r:dev']);
+});
+
+test('APPS-022 an "image:" line inside a block scalar is NOT invented', () => {
+  // This used to collect ghcr.io/evil/x:dev and could fail a build over an image no
+  // service references.
+  const text = [
+    'services:',
+    '  app:',
+    '    image: ghcr.io/o/r:1.0.0',
+    '    command: |',
+    '      echo "image: ghcr.io/evil/x:dev"',
+    '',
+  ].join('\n');
+  assert.deepEqual(imageRefsIn(text), ['ghcr.io/o/r:1.0.0']);
+});
+
+test('APPS-022 ordinary block style still works, in order', () => {
+  const text = 'services:\n  a:\n    image: ghcr.io/o/a:1.0.0\n  b:\n    image: ghcr.io/o/b:2.0.0\n';
+  assert.deepEqual(imageRefsIn(text), ['ghcr.io/o/a:1.0.0', 'ghcr.io/o/b:2.0.0']);
+});
+
+test('APPS-022 quotes are stripped and a digest is kept intact', () => {
+  const ref = 'ghcr.io/o/r:1.0.0@sha256:' + 'a'.repeat(64);
+  assert.deepEqual(imageRefsIn(`services:\n  app:\n    image: "${ref}"\n`), [ref]);
+});
+
+test('APPS-022 an unparseable compose falls back to the raw scan rather than seeing nothing', () => {
+  assert.deepEqual(imageRefsIn('services:\n  app:\n    image: ghcr.io/o/r:dev\n : : :\n  bad'), ['ghcr.io/o/r:dev']);
+});
+
+test('APPS-022 a document with no services map falls back rather than reporting no images', () => {
+  assert.deepEqual(imageRefsIn('x-other:\n  image: ghcr.io/o/r:dev\n'), ['ghcr.io/o/r:dev']);
+});
+
+test('APPS-022 a service with no image contributes nothing', () => {
+  assert.deepEqual(imageRefsIn('services:\n  a:\n    build: .\n  b:\n    image: ghcr.io/o/b:1.0.0\n'), ['ghcr.io/o/b:1.0.0']);
+});
+
+test('APPS-022 non-strings and empties are safe', () => {
+  for (const v of [null, undefined, 42, {}, []]) assert.deepEqual(imageRefsIn(v), []);
+  assert.deepEqual(imageRefsIn(''), []);
+});
+
+// ── APPS-023: an entry's VERSION marks dev content, not only its image tag ──────
+// Found by the 2026-08-18 audit. lint's stable leakage gate only inspected image
+// tags, so a DIGEST-PINNED dev entry passed a dev → main PR: there was no tag to
+// object to. openwa is exactly that shape — its image is an upstream RELEASE tag
+// pinned by digest, while the entry's own version is a prerelease.
+
+test('APPS-023 a prerelease version is dev content', () => {
+  for (const v of ['0.2.0-dev.6', '0.11.0-dev.1', '1.0.0-rc.1', '2.0.0-alpha']) {
+    assert.equal(isDevVersion(v), true, `${v} should be dev`);
+  }
+});
+
+test('APPS-023 a release version is not', () => {
+  for (const v of ['0.1.2', '1.0.0', '0.21.0', '10.20.30']) {
+    assert.equal(isDevVersion(v), false, `${v} should not be dev`);
+  }
+});
+
+test('APPS-023 an unparseable or missing version is not claimed to be dev', () => {
+  // "I cannot tell" must not read as "it is a dev build" — that would fail a stable
+  // release over a version string this repo does not own.
+  for (const v of [null, undefined, '', 'garbage', 'v1', {}, 42]) {
+    assert.equal(isDevVersion(v), false, `${JSON.stringify(v)} should not be dev`);
+  }
+});
+
+test('APPS-023 THE GAP: a digest-pinned dev entry has no dev TAG, so only the version betrays it', () => {
+  const compose = 'services:\n  app:\n    image: ghcr.io/rmyndharis/openwa:0.21.0@sha256:' + 'a'.repeat(64) + '\n';
+  const refs = imageRefsIn(compose);
+  assert.equal(refs.length, 1);
+  assert.equal(isDevImageRef(refs[0]), false, 'the image is a release tag — the image check finds nothing');
+  assert.equal(isDevVersion('0.2.0-dev.6'), true, 'the version is what catches it');
 });

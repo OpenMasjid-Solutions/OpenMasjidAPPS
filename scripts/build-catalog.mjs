@@ -28,6 +28,8 @@ import { execFileSync } from 'node:child_process';
 import { parse } from 'yaml';
 import { validateCompose } from './validate-compose.mjs';
 import { validateSource, rawBase, validateManifestFields } from './registry-validate.mjs';
+import { capabilityFields, capabilityProblems } from './capabilities.mjs';
+import { parseCommands, isReservedAppId, COMMANDS_CAPABILITY, RESERVED_APP_ID_WORDS } from './commands.mjs';
 import {
   resolveChannel,
   isStableRef,
@@ -40,6 +42,8 @@ import {
   compareVersions,
   devEntryProblems,
   IMAGE_DIGEST_RE,
+  findVersionRegressions,
+  PUBLISHED_MAIN_CATALOG_URL,
 } from './channels.mjs';
 
 const REGISTRY = 'registry.yaml';
@@ -57,7 +61,7 @@ const GRANT_RE = /^[a-z0-9][a-z0-9-]{0,79}\/[a-z0-9][a-z0-9-]{0,39}$/;
 // A full git commit SHA — 40 lowercase hex chars. Pinning a registry entry to one
 // of these is the ONLY immutable pin: tags and branches are mutable, so a repo
 // owner (or whoever compromises the repo) can move them to backdoored content and
-// the unattended daily rebuild (see .github/workflows/build-catalog.yml) will
+// the unattended hourly rebuild (see .github/workflows/build-catalog.yml) will
 // republish it under a previously-reviewed ref. A SHA cannot be moved.
 // Defined once in channels.mjs — the channel rules test the same shape, and two
 // copies of this regex would eventually disagree.
@@ -135,6 +139,13 @@ function parseFabricManifest(id, fabric) {
       if (typeof cap !== 'string' || !CAPABILITY_RE.test(cap)) {
         fail(`${id}: each fabric.provides entry needs a kebab-case "capability" (a-z, 0-9, -)`);
       }
+      // Refused unconditionally, exactly as the platform does — NOT only when the app
+      // also declares `commands:`. Refusing only the both-at-once case would let a
+      // manifest pass the catalog build and then fail at install, which is the one
+      // divergence this mirror exists to prevent.
+      if (cap === COMMANDS_CAPABILITY) {
+        fail(`${id}: "${COMMANDS_CAPABILITY}" is reserved for admin commands — declare them under "commands:", not fabric.provides. Both are served at /fabric/commands/run, but fabric.provides would expose that admin-only handler to any app that consumes "${id}/${COMMANDS_CAPABILITY}"`);
+      }
       provides.push(cap);
     }
   }
@@ -153,6 +164,18 @@ function parseFabricManifest(id, fabric) {
   if (provides.length) out.provides = provides.map((capability) => ({ capability }));
   if (consumes.length) out.consumes = consumes;
   return out;
+}
+
+// Validate + normalise a manifest `commands:` list — the admin commands a masjid admin
+// runs by messaging the masjid's WhatsApp number (`!students`, `!display 2`). The rules
+// live in scripts/commands.mjs, which mirrors OpenMasjidOS parseCommands and carries
+// the reasoning; here we only translate its throw into the build's fail().
+function parseCommandsManifest(id, commands) {
+  try {
+    return parseCommands(commands, id);
+  } catch (e) {
+    fail(`${id}: ${e.message}`);
+  }
 }
 
 // Validate + normalise a manifest `alerts:` list (the granular admin-alert types).
@@ -410,6 +433,12 @@ for (const entry of entries) {
   const { id, repo, ref, path, commit, sha, dev_ref: devRef } = entry || {};
   if (!id || !repo) fail(`registry entry is missing "id" or "repo": ${JSON.stringify(entry)}`);
   if (!APP_ID_RE.test(id)) fail(`${id}: invalid id — use kebab-case (a-z, 0-9, -), max 80 chars`);
+  // A command's namespace IS the app id, so an app called `os` would shadow `!os` in
+  // the masjid's WhatsApp chat. OpenMasjidOS refuses these at install; refuse them
+  // here so such an entry can never reach a masjid in the first place.
+  if (isReservedAppId(id)) {
+    fail(`${id}: this id names the platform, not an app — it would shadow "!${id}" in the WhatsApp admin commands. Reserved: ${[...RESERVED_APP_ID_WORDS].join(', ')}`);
+  }
   if (seen.has(id)) fail(`duplicate id in registry: ${id}`);
   seen.add(id);
 
@@ -417,7 +446,7 @@ for (const entry of entries) {
   // Without this, a `..` segment in `path` silently redirected the entry to a
   // different repository while `repo`/`commit`, the review diff and the build log
   // all still named the pinned one — defeating the only integrity control the
-  // unattended daily rebuild has. See registry-validate.mjs. (APPS-001)
+  // unattended hourly rebuild has. See registry-validate.mjs. (APPS-001)
   const sourceProblems = validateSource({ repo, ref, path, dev_ref: devRef });
   if (sourceProblems.length) {
     fail(`${id}: unsafe registry entry:\n   - ${sourceProblems.join('\n   - ')}`);
@@ -576,13 +605,12 @@ for (const entry of entries) {
   // Fabric app-to-app broker grants + tunnel-exposure request (validated here so a
   // malformed shape fails the build rather than silently dropping).
   const fabric = parseFabricManifest(id, m.fabric);
-  if (m.tunnel != null && typeof m.tunnel !== 'boolean') {
-    fail(`${id}: manifest "tunnel" must be true or false`);
-  }
-  if (m.email != null && typeof m.email !== 'boolean') {
-    fail(`${id}: manifest "email" must be true or false`);
-  }
+  // Every boolean capability is type-checked from ONE list (scripts/capabilities.mjs),
+  // so a new one cannot be validated here but forgotten in the entry below — which is
+  // exactly how `whatsapp` went missing and cost apps a 403 they could not diagnose.
+  for (const problem of capabilityProblems(m)) fail(`${id}: ${problem}`);
   const alerts = parseAlertsManifest(id, m.alerts);
+  const commands = parseCommandsManifest(id, m.commands);
 
   // The compose text is embedded verbatim into catalog.json, which every masjid
   // fetches. A real one is well under 10 KB; anything near the fetch ceiling is a
@@ -631,34 +659,25 @@ for (const entry of entries) {
     description: m.description,
     settings: m.settings,
     ports: m.ports,
-    // Opt-in OpenMasjidOS Fabric capabilities. Carried through so the platform
-    // issues the app a per-app secret at install and honours the matching calls
-    // (sso → /api/auth/session, notifications → /api/fabric/notify,
-    //  stripe → /api/fabric/stripe).
-    sso: m.sso === true ? true : undefined,
-    notifications: m.notifications === true ? true : undefined,
-    // Fetch shared Stripe keys from the OS vault (one account, many apps) instead
-    // of each app storing its own. The platform issues the per-app secret + honours
-    // GET /api/fabric/stripe?account=<name>.
-    stripe: m.stripe === true ? true : undefined,
-    // Learn this app's PUBLIC URL (the admin's Cloudflare-tunnel domain + path) via
-    // GET /api/fabric/site — for absolute links (Stripe return URLs, webhooks, QR).
-    domain: m.domain === true ? true : undefined,
-    // Require HTTPS — set ONLY by apps that use Stripe (they need a secure
-    // context). The platform serves such an app on a dedicated HTTPS port.
-    https: m.https === true ? true : undefined,
+    // Opt-in OpenMasjidOS Fabric capabilities, copied from the SINGLE list in
+    // scripts/capabilities.mjs so the set the build validates and the set it emits
+    // cannot drift apart. Each one carried through here is what makes the platform
+    // issue the app a per-app secret at install and honour the matching calls; a key
+    // that never reaches catalog.json reads on the platform as "the app never asked",
+    // which is a 403 the app author cannot debug from their own repo.
+    // Only `true` survives — an absent key means "did not ask".
+    ...capabilityFields(m),
     // App-to-app broker grants (provides/consumes) — the platform issues the
     // per-app secret and brokers POST /api/fabric/app/<target>/<cap>/<method>.
+    // Not a boolean, so it is parsed and carried separately.
     fabric,
-    // Request internet exposure through the OS's Cloudflare tunnel (the admin still
-    // confirms per-app in Settings). Off ⇒ the app stays on the LAN.
-    tunnel: m.tunnel === true ? true : undefined,
-    // Send email (receipts, parent notices) via the admin's provider over
-    // POST /api/fabric/email — the app never sees the mail credentials.
-    email: m.email === true ? true : undefined,
     // Alert types this app can raise (POST /api/fabric/alert); the admin gets a
-    // granular on/off per alert in Settings → Alerts.
+    // granular on/off per alert in Settings → Alerts. Also not a boolean.
     alerts,
+    // Admin commands a masjid admin runs by messaging the masjid's WhatsApp number.
+    // Declaring these alone issues the app its Fabric secret — no other capability
+    // needed, exactly as `alerts:` already does.
+    commands,
     compose: composeText,
   });
   // On a fallback the published version IS the stable one, so the floor holds by
@@ -725,6 +744,50 @@ for (const entry of comingSoon) {
 apps.sort((a, b) => a.name.localeCompare(b.name));
 // Drop undefined keys for a tidy catalog.
 const clean = apps.map((a) => JSON.parse(JSON.stringify(a)));
+// THE STABLE REGRESSION GATE. Before writing anything, check this catalog against
+// the one masjids are actually running. Publishing a lower version than they have
+// installed is an app DOWNGRADE, live instantly and with no deploy step to catch it.
+//
+// Checked only on the stable channel: the dev channel legitimately moves backwards
+// when an entry falls back to its stable release (a missing image, a dev branch
+// behind its own release), and the freshness floor already bounds it from below.
+//
+// A deliberate rollback is a real operation — `display: roll the catalog back to
+// v0.61.0` has happened — so this is overridable with OPENMASJID_ALLOW_DOWNGRADE=1.
+// It must be stated, not stumbled into.
+if (!isDevChannel) {
+  let published = null;
+  try {
+    published = JSON.parse(await fetchText(PUBLISHED_MAIN_CATALOG_URL));
+  } catch (e) {
+    // Unreachable/rate-limited/malformed — say so and continue. Refusing to publish
+    // because GitHub was briefly unavailable would be a worse failure than the one
+    // this guards against.
+    warn(`could not read the published stable catalog to check for downgrades (${e.message}) — regression check skipped`);
+  }
+  if (published) {
+    const regressions = findVersionRegressions(clean, published.apps);
+    if (regressions.length) {
+      const lines = regressions.map((r) => `${r.id}: ${r.from} → ${r.to}`);
+      if (process.env.OPENMASJID_ALLOW_DOWNGRADE === '1') {
+        warn(
+          `publishing ${regressions.length} DOWNGRADE(s) because OPENMASJID_ALLOW_DOWNGRADE=1:\n   - ` +
+            lines.join('\n   - '),
+        );
+      } else {
+        fail(
+          `this build would move ${regressions.length} app(s) BACKWARDS for every masjid on the stable ` +
+            `channel:\n   - ${lines.join('\n   - ')}\n   Usually this means registry.yaml is stale on the ` +
+            `branch being released — check whether those apps were bumped directly on main, and merge main ` +
+            `into dev before releasing. If the rollback is deliberate, set OPENMASJID_ALLOW_DOWNGRADE=1.`,
+        );
+      }
+    } else {
+      console.log(`✓ no downgrades: every app is at or ahead of what the stable channel publishes today.`);
+    }
+  }
+}
+
 // Single-channel per branch, and the envelope shape is untouched: no channel key is
 // added here. catalog.json is the platform's contract (CLAUDE.md §2) and the branch
 // it is fetched from is what identifies the channel.
@@ -732,5 +795,5 @@ writeFileSync('catalog.json', JSON.stringify({ apps: clean }, null, 2) + '\n');
 console.log(`✓ Built catalog.json with ${clean.length} app(s) for the ${channel} channel.`);
 if (warnings > 0) {
   // Surface, but don't fail — these are supply-chain hardening nudges, not errors.
-  console.warn(`⚠ ${warnings} security warning(s) above. Immutable commit-SHA pins (registry.yaml) and digest-pinned images are the integrity controls for the unattended daily rebuild.`);
+  console.warn(`⚠ ${warnings} security warning(s) above. Immutable commit-SHA pins (registry.yaml) and digest-pinned images are the integrity controls for the unattended hourly rebuild.`);
 }

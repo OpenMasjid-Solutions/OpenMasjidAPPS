@@ -86,6 +86,28 @@ auto-published `catalog.json`. These rules keep that supply chain safe. The cata
    **The dev channel is not exempt.** A dev compose must also pin an immutable reference — either a
    digest, or the exact prerelease version tag it declares. Never `:dev`. See §8b.
 
+   > ### ⚠ Tag the digest-pin commit — not the commit before it
+   >
+   > The digest does not exist until CI has built and pushed the image, so the commit that writes
+   > `@sha256:…` into your compose necessarily comes **after** the build. Do your release in this
+   > order:
+   >
+   > 1. bump `manifest.yaml` to the release version → 2. let CI publish the image →
+   > 3. commit the compose with the **published** digest → 4. **tag that commit**.
+   >
+   > Tag at step 1 or 2 and your release tag carries the **previous** release's digest. Anyone who
+   > pins your tag then ships the old image under the new version number — a masjid "updates" and
+   > gets the code it already had, with nothing to indicate it.
+   >
+   > This is not hypothetical. `OpenMasjidDisplay`'s `v0.67.0` tag carries
+   > `@sha256:3a789623…`, which is **0.66.1's image**; the correct `0.67.0` digest
+   > (`@sha256:02672477…`) landed five minutes later in a follow-up commit. `OpenMasjidKiosk`'s
+   > `v0.11.0` has the same shape. Both were caught only because the catalog pins a `commit:` SHA
+   > rather than the tag, so it fetched the corrected commit.
+   >
+   > If your tag is already wrong, do not move it — tags are immutable by convention here. Cut the
+   > next patch release, or tell the catalog maintainer which commit to pin.
+
 2. **Treat any Fabric SSO/session value as an IDENTITY assertion, never a credential.** The Fabric
    answer to *"is the current viewer the platform admin?"* is the **only** thing it tells you. Never
    use the session cookie, `OPENMASJID_APP_SECRET`, or any platform-provided value to call the
@@ -160,6 +182,17 @@ ports:
 #     - students/billing
 # tunnel: true                      # OPTIONAL — REQUEST internet exposure (admin confirms in Settings)
 # email: true                       # OPTIONAL — POST /api/fabric/email to send mail (see §7)
+# whatsapp: true                    # OPTIONAL — POST /api/fabric/whatsapp to send WhatsApp (see §7)
+# commands:                         # OPTIONAL — admin runs these from WhatsApp, !<app-id> (see §7)
+#   - id: whats-on                  #   kebab-case, not all digits, max 12 commands
+#     label: What's on the screen   #   shown in the numbered menu
+#     description: Reads it back.   #   optional
+#   - id: post-notice
+#     label: Put a message up
+#     argument:                     #   OMIT if it takes no text. An OBJECT — never `argument: true`
+#       label: message
+#       required: false             #   default true
+#     confirm: true                 #   ask before doing it
 # alerts:                           # OPTIONAL — admin gets a granular on/off per alert (see §7)
 #   - id: reader-offline            #   kebab id you POST to /api/fabric/alert
 #     label: Card reader offline
@@ -497,6 +530,144 @@ POST ${OPENMASJID_BASE_URL}/api/fabric/email
 **Fail soft**: `not_configured` just means the admin hasn't set up email — keep working (record the
 donation, show the receipt on screen). Rate-limited per app. Server→server, LAN-only, not CORS-enabled.
 
+### Sending WhatsApp — opt in with `whatsapp: true` *(platform v0.50.4+)*
+
+The masjid installs the **`openwa`** app (OpenWA, MIT, self-hosted) from the App Store and links a
+number in Settings → WhatsApp. Set `whatsapp: true` and your **backend** asks the platform to send;
+you never see the gateway, its key, or the linked number.
+
+```
+POST ${OPENMASJID_BASE_URL}/api/fabric/whatsapp
+  X-OpenMasjid-App-Secret: <OPENMASJID_APP_SECRET>
+  Content-Type: application/json
+  { "to": "+447700900123", "text": "Fees for this term are now due." }
+→ 202 { "queued": true }  |  { "queued": false, "reason": "not_configured" | "rate_limited" | … }
+```
+
+**Read the platform's `docs/WHATSAPP.md` before you build on this** — it is the normative contract.
+The rules that catch people out:
+
+- **`202 {queued: true}` NEVER means sent.** The platform holds one paced queue and may deliver
+  minutes later, or during quiet hours, not at all until morning. Do not block a user flow on it.
+- **One recipient per call.** No bulk arrays — the pacing is the point.
+- **Never anything auth-critical.** No OTPs, no password resets, no payment confirmations that a
+  user is waiting on. Keep email or SMS for those.
+- **Recipients must have opted in.** Messaging people who never asked to hear from you is the single
+  most reliable way to get the masjid's number restricted.
+
+**Why the platform owns the queue.** WhatsApp does not officially permit this: OpenWA is an
+unofficial client and **a linked number can be restricted or banned.** That risk belongs to the
+*number*, not to any one app — if three apps each send "politely" at the same moment, WhatsApp still
+sees one number emitting a burst. So every message from every app and the OS itself goes through a
+single serialised, jittered, warm-up-ramped, quiet-hours-aware queue. Your app cannot opt out of it,
+and should not want to.
+
+**Fail soft**: `not_configured` means the masjid has no gateway — keep working and fall back to
+email or on-screen. Rate-limited per app. Server→server, LAN-only, not CORS-enabled.
+
+#### Posting to a group — no manifest change
+
+For announcements, send `group` instead of `to`. **The admin decides which groups apps may post
+to**, in Settings, so you must read the approved list at runtime rather than storing an id:
+
+```
+GET  ${OPENMASJID_BASE_URL}/api/fabric/whatsapp/groups   → the groups the ADMIN approved, only
+POST ${OPENMASJID_BASE_URL}/api/fabric/whatsapp          { "group": "<id from that list>", "text": "…" }
+```
+
+An id that is not on the list is refused. `whatsapp: true` covers this — there is no `groups`
+manifest key, and there should not be one: a manifest key would mean the *app* decides, which is
+backwards.
+
+#### Sending an image — no manifest change
+
+Add an optional `media` object; `text` becomes its caption. PNG, JPEG or WebP, **2 MB decoded**.
+
+**Probe before you rely on it**, on the same `GET .../groups` response, and **read an absent field
+as `false`** — a masjid on an older platform simply has no `media` key, and treating that as "yes"
+means silently sending nothing. Same rule as every other capability probe here.
+
+
+
+### Admin commands — declare them with `commands:` *(platform v0.50.4+)*
+
+Let an authorised admin run something against your app by sending a WhatsApp message to the
+masjid's number (`!<your-app-id>`). **The platform owns everything except the doing:** it decides
+who may run what, renders the numbered menu, asks for confirmation, and formats the reply. You are
+asked only to execute one command you declared.
+
+```yaml
+commands:
+  - id: whats-on                    # kebab-case, stable — this is what we send you
+    label: What's on the screen now # shown in the menu and in Settings
+    description: Reads back the current notice.
+  - id: post-notice
+    label: Put a message on the screen
+    argument:                       # OMIT if the command takes no text
+      label: message                # one or two words: "add your message after the number"
+      required: false               # default true
+    confirm: true                   # ask the sender to confirm first
+```
+
+**What the catalog build enforces**, so an install can never surprise you — these are checked here
+*and* at install, and the two are kept deliberately identical:
+
+- At most **12** commands. A numbered menu longer than that does not fit in one message.
+- `id` is kebab-case, **not all digits** (`!display 2` must only ever mean "the second option"),
+  not one of `help` `yes` `no` `cancel` `stop`, and unique within your app.
+- `label` is required; `description` is optional text. Over-long values are **truncated**
+  (label 80, description 200, `argument.label` 40) — a wrong *type* is a hard error.
+- `argument` must be an **object with a `label`**. `argument: true` and `argument: "message"` are
+  **rejected, not coerced** — `true` reads like "takes an argument" but carries no label, and
+  accepting it would mean silently discarding whatever a volunteer typed while telling them it
+  worked.
+- Set `confirm: true` for anything people will see or that cannot be undone. It also puts the
+  command in the admin's audit alert.
+- Your **app id** may not be `os`, `omos`, `openmasjid`, `openmasjidos`, `platform` or `help` — a
+  command's namespace is the app id, so those would shadow the platform's own words.
+
+#### Serving it
+
+```
+POST /fabric/commands/run          ← on your app's own web port, like every /fabric/* route
+  X-OpenMasjid-App-Secret: <your OWN OPENMASJID_APP_SECRET>
+  X-OpenMasjid-Caller-App: omos:platform
+  { "command": "post-notice", "text": "Jumu'ah is at 1:30", "requestId": "…", "locale": "en" }
+```
+
+Answer with HTTP 200 and JSON:
+
+| Meaning | Body |
+|---|---|
+| Done | `{ "ok": true, "text": "The notice is on the screen now." }` |
+| Failed, and you can say why | `{ "ok": false, "error": "The screen is switched off at the wall." }` |
+| Not a command you know (HTTP 404) | `{ "ok": false, "code": "unknown_command" }` |
+| Still starting up (HTTP 503) | `{ "ok": false, "code": "not_ready", "error": "…" }` |
+
+- **Verify BOTH headers.** `X-OpenMasjid-App-Secret` must equal your own `OPENMASJID_APP_SECRET`,
+  **and** `X-OpenMasjid-Caller-App` must be exactly `omos:platform`. That value can never be an app
+  id — the colon is outside the charset every app id is validated against — so it identifies the
+  platform by construction rather than by an allow-list somebody has to maintain.
+- **Declaring `commands:` alone issues your Fabric secret**; no other capability is needed, exactly
+  as `alerts:` already does.
+- **`commands` is a RESERVED Fabric capability.** Putting it in `fabric.provides` is refused by the
+  catalog build and at install: it would let another app reach this same handler through the
+  app-to-app broker with `consumes: ["<your-app>/commands"]` — the same path prefix under a very
+  different trust boundary.
+- Your `text` and `error` are plain text, ≤1000 characters. The platform strips control characters,
+  collapses blank lines and trims to the message cap — you cannot make one answer look like three
+  messages.
+- Reply promptly: **10 second timeout**, 16 KB response cap. A command a volunteer is waiting on is
+  not the place for a long job; kick it off and say you have.
+- `/fabric/*` is LAN-only and never served over the tunnel, as for every other Fabric route.
+
+**What the platform will never ask you to do.** Commands are an ADMIN channel. There is no way for
+a command to name a phone number, and there never will be — that is the line between an admin
+channel and a spam gateway. To message a parent or a donor, use `POST /api/fabric/whatsapp`.
+
+The normative contract is OpenMasjidOS `docs/APP_MANIFEST_SPEC.md` → "Admin commands"; this section
+mirrors it, and `docs/WHATSAPP.md` there covers the sending rules.
+
 ### Raising admin alerts — declare them with `alerts:` *(platform v0.41.0+)*
 
 Tell the admin when something is wrong (a camera/reader offline, a failed payment). Declare each
@@ -564,6 +735,35 @@ apps:
 
 CI fetches your repo, validates it, and regenerates `catalog.json`. Your app then appears in the
 store.
+
+### 8a. Shipping a new release to masjids
+
+Once listed, a new release of your app reaches masjids only when the **registry pin moves**. The
+catalog does not follow your tags — `commit:` is what it fetches, and it is hand-edited.
+
+**Open a PR against the catalog's `dev` branch — never `main`.** Change only your own entry:
+
+```yaml
+  - id: my-app
+    ref: v1.2.0            # the tag you just published
+    commit: <40-char SHA>  # the commit that tag is on — the one with the correct digest (§2b.1)
+```
+
+Then stop. A catalog maintainer runs the release that moves `main`; that is the only thing that
+changes what masjids install. Do **not** commit to the catalog's `main`, and do not merge its `dev`
+into `main` — the two branches legitimately hold different builds of `catalog.json`, and a naive
+merge has already come within one command of publishing three app downgrades.
+
+Two things follow from that near-miss:
+
+- **A bump committed straight to `main` desynchronises `dev`.** The next release cut from `dev` then
+  carries *older* pins for your app and silently rolls masjids back. The catalog now fails the build
+  if that would happen, but the cure is to route bumps through `dev` in the first place.
+- **`ref` is a label; `commit` is the truth.** If they disagree — because your tag predates the
+  digest fix (§2b.1) — pin the commit that has the correct digest and say so in the PR.
+
+**The dev channel needs no PR.** `dev_ref: dev` follows your dev branch on its own and rebuilds
+hourly; see §8b.
 
 ### 8b. Update channels — stable and dev
 

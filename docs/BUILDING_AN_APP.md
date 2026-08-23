@@ -541,29 +541,62 @@ POST ${OPENMASJID_BASE_URL}/api/fabric/whatsapp
   X-OpenMasjid-App-Secret: <OPENMASJID_APP_SECRET>
   Content-Type: application/json
   { "to": "+447700900123", "text": "Fees for this term are now due." }
-→ 202 { "queued": true }  |  { "queued": false, "reason": "not_configured" | "rate_limited" | … }
+→ 202 { "queued": true, "id": "<opaque id>" }
+→     { "queued": false, "error": "…" }        400 / 403 / 413 / 429
 ```
 
-**Read the platform's `docs/WHATSAPP.md` before you build on this** — it is the normative contract.
-The rules that catch people out:
+**Read the platform's `docs/WHATSAPP.md` before you build on this** — it is the normative
+contract. The rules that catch people out:
 
-- **`202 {queued: true}` NEVER means sent.** The platform holds one paced queue and may deliver
-  minutes later, or during quiet hours, not at all until morning. Do not block a user flow on it.
+- **`202 {queued: true}` NEVER means sent.** It means accepted for later delivery, and **there is
+  no delivery receipt from WhatsApp** — not for us, not for anyone using an unofficial client. Do
+  not block a user flow on it. You *can* ask what became of it afterwards (below).
+- **A queued message can now stay queued for a long time.** If the link to WhatsApp is down the
+  queue is **held rather than dropped**, and nothing sends again until an admin presses *Send them
+  now* in Settings → WhatsApp — deliberately, because releasing a backlog from a just-relinked
+  number is the behaviour most likely to get it restricted. A weekend outage means Friday's
+  messages are still waiting on Monday. **Any logic that assumes a queued message resolves within
+  minutes is now wrong.**
 - **One recipient per call.** No bulk arrays — the pacing is the point.
-- **Never anything auth-critical.** No OTPs, no password resets, no payment confirmations that a
-  user is waiting on. Keep email or SMS for those.
-- **Recipients must have opted in.** Messaging people who never asked to hear from you is the single
-  most reliable way to get the masjid's number restricted.
+- **Never anything auth-critical.** No OTPs, no password resets, no payment confirmation a user is
+  sitting there waiting for. Keep email or SMS for those.
+- **Recipients must have opted in.** Messaging people who never asked to hear from you is the
+  single most reliable way to get the masjid's number restricted.
 
 **Why the platform owns the queue.** WhatsApp does not officially permit this: OpenWA is an
 unofficial client and **a linked number can be restricted or banned.** That risk belongs to the
-*number*, not to any one app — if three apps each send "politely" at the same moment, WhatsApp still
-sees one number emitting a burst. So every message from every app and the OS itself goes through a
-single serialised, jittered, warm-up-ramped, quiet-hours-aware queue. Your app cannot opt out of it,
-and should not want to.
+*number*, not to any one app — if three apps each send "politely" at the same moment, WhatsApp
+still sees one number emitting a burst. So every message, from every app and from the OS itself,
+goes through one serialised queue your app cannot opt out of.
+
+What that queue does is **narrower than it used to be**, which matters if you sized any timeout
+around the old behaviour: the hourly and daily caps, the per-recipient and per-group cooldowns, the
+warm-up ramp, the 6–20 second inter-message gap and the 21:00–07:00 quiet-hours window have **all
+been removed** (platform v0.51.1) — each cost more than it bought, and the platform's own doc gives
+the reasoning. What remains is one message at a time, a typing indicator before each, a durable
+queue that survives a restart, and the hold-on-outage behaviour above. **Nothing in OpenMasjidOS
+caps how much your app sends**, so the restraint is now yours.
 
 **Fail soft**: `not_configured` means the masjid has no gateway — keep working and fall back to
 email or on-screen. Rate-limited per app. Server→server, LAN-only, not CORS-enabled.
+
+#### Ask first — the capability probe
+
+Before you offer WhatsApp in your own settings, ask whether *this* masjid can actually use it.
+Otherwise your switch looks available on every install and fails only when a real message was due.
+
+```
+GET ${OPENMASJID_BASE_URL}/api/fabric/whatsapp
+→ 200 { "available": true,
+        "reason": "ready" | "not-configured" | "not-linked" | "unreachable",
+        "media": true, "maxMediaBytes": 2097152,
+        "outcomes": true }
+→ 403 { "available": false, "reason": "not-allowed" }     ← you did not declare `whatsapp: true`
+```
+
+**Read an absent field as `false`.** `media` and `outcomes` are simply missing on an older
+platform, and treating absence as "yes" means silently sending nothing, or polling a route that is
+not there. Same rule as every other capability probe in this document.
 
 #### Posting to a group — no manifest change
 
@@ -575,19 +608,72 @@ GET  ${OPENMASJID_BASE_URL}/api/fabric/whatsapp/groups   → the groups the ADMI
 POST ${OPENMASJID_BASE_URL}/api/fabric/whatsapp          { "group": "<id from that list>", "text": "…" }
 ```
 
-An id that is not on the list is refused. `whatsapp: true` covers this — there is no `groups`
-manifest key, and there should not be one: a manifest key would mean the *app* decides, which is
-backwards.
+An id that is not on the list is refused with `403`. Treat an empty list as "no groups available"
+and hide the feature rather than erroring — the admin can withdraw approval at any time.
+`whatsapp: true` covers this; there is no `groups` manifest key and there should not be one, since
+a manifest key would mean the *app* decides, which is backwards.
+
+**A group post is for genuine announcements.** Never use one to tell a family about their own fees
+— their business is not the other 199 members'.
 
 #### Sending an image — no manifest change
 
-Add an optional `media` object; `text` becomes its caption. PNG, JPEG or WebP, **2 MB decoded**.
+Add an optional `media` object (`data` base64 + `mimeType`); `text` becomes its caption. PNG, JPEG
+or WebP, **2 MB decoded**. Check `media` and `maxMediaBytes` on the probe above rather than
+hard-coding either — the check exists so you do not render a poster and base64 half a megabyte into
+a request that was never going to work.
 
-**Probe before you rely on it**, on the same `GET .../groups` response, and **read an absent field
-as `false`** — a masjid on an older platform simply has no `media` key, and treating that as "yes"
-means silently sending nothing. Same rule as every other capability probe here.
+#### Knowing what happened to a message *(platform v0.51.1+)*
 
+`202` used to be the end of the story: an app recorded that it had handed a message over, and
+nothing anywhere could contradict it. That is what made a real 24-hour non-delivery impossible to
+diagnose from the app's side. Two read-only routes close that, both on the **read rate tier
+(600/min)** — separate from the send tier, so reconciling a few hundred ids can never cost you a
+send.
 
+**What became of one message** — poll the `id` the `202` gave you:
+
+```
+GET ${OPENMASJID_BASE_URL}/api/fabric/whatsapp/status/<id>
+→ 200 { "id": "…", "state": "queued" | "sent" | "failed" | "expired",
+        "reason": "…", "at": <epoch ms>, "target": "…" }
+→ 404 { "error": "No such message." }
+```
+
+- **A `404` means "unknown", and must NEVER be read as a delivery failure.** It covers an id you
+  invented, an id belonging to **another app**, a record that has aged out, and a platform too old
+  to have the route at all — four very different situations behind one status code. Treat it as "I
+  cannot tell" and fall back to your own records.
+- **The history is bounded per app: your most recent 500 messages, for up to 24 hours.** Another
+  app's traffic cannot evict yours — a shared 200-record ring did allow exactly that before
+  v0.51.1-dev.8, so one app messaging a large roster wiped every other app's outcomes and their
+  polls came back `404`. If you sized a poll interval around the old shared 200, you can relax it.
+- `expired` is a real answer, not an error: a message held longer than 24 hours of *working*
+  connection time is dropped rather than released later as part of a burst.
+
+**Which of your messages may never have arrived** — the honest gap:
+
+```
+GET ${OPENMASJID_BASE_URL}/api/fabric/whatsapp/suspect
+→ 200 { "windows": [ { "from": <epoch ms>, "to": <epoch ms>, "count": <number> } ] }
+→ 200 { "windows": [] }                                   ← the normal answer
+→ 403 { "error": "This app is not allowed to use WhatsApp." }
+```
+
+A WhatsApp session can expire on its own, and while it has, the gateway goes on accepting messages
+and answering `2xx` — so the platform records them `sent` when nothing was delivered. That is now
+detected within five minutes and the queue is held, but **the window between the link dying and
+detection cannot be closed**, and the platform cannot re-send what fell inside it: it deletes
+message contents the moment it hands them over, deliberately, so a child's name and a family's fees
+are not sitting on disk longer than they must be.
+
+**So reconciliation is yours, from your own records.** Each window gives you `from`, `to`, and a
+count of **your own** messages inside it — never another app's. If `count` is non-zero, look up
+what you sent in that period and decide what is worth sending again: a fee reminder probably is, a
+"your payment went through" from four days ago probably is not.
+
+Poll it after an outage notification, or on a slow timer. `{"windows": []}` is the normal answer
+and costs you nothing.
 
 ### Admin commands — declare them with `commands:` *(platform v0.50.4+)*
 

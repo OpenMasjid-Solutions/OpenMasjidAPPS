@@ -94,4 +94,29 @@ apps:
 # Coming-soon teasers — apps that aren't released yet (no repo/image). They show
 # in the App Store with a "Coming soon" badge and can't be installed. Metadata
 # only here; when one ships, give it a repo + tag and move it up into `apps:`.
+  - id: companion
+    repo: OpenMasjid-Solutions/OpenMasjidCompanion
+    # ┌─────────────────────────────────────────────────────────────────────────────────┐
+    # │ DEV CHANNEL ONLY — this entry is NOT ready to be merged to main.                │
+    # └─────────────────────────────────────────────────────────────────────────────────┘
+    # OpenMasjidCompanion has no stable release yet. Its `main` carries a bootstrap commit
+    # and nothing else — no manifest.yaml, no docker-compose.yml — so `ref` below cannot
+    # resolve on the stable channel and the build FAILS:
+    #
+    #   $ node scripts/build-catalog.mjs --channel main
+    #   ✗ companion: could not fetch manifest.yaml from …@771cf30… (HTTP 404)   → exit 1
+    #
+    # That is a blocked catalog release, not a broken catalog for masjids (the build refuses
+    # rather than publishing), but it blocks EVERY app's release until it is dealt with. So
+    # before the next `dev` → `main` catalog release, either:
+    #   • Companion has cut v0.1.0 — then set `ref: v0.1.0` and `commit:` to the SHA of its
+    #     digest-pin commit, and this entry is complete and correct on both channels; or
+    #   • drop these four lines from main's registry.yaml and re-add them when it has.
+    #
+    # `ref` is deliberately Companion's CURRENT main (the bootstrap commit) rather than a
+    # tag that does not exist: it is the truthful answer to "where is this app's stable
+    # channel today", and it makes the failure name the real cause.
+    ref: 771cf308567c7db891fae23b0eda9ffccc13431b   # OpenMasjidCompanion@main — no release yet
+    dev_ref: dev                                 # dev channel — tracks the app's dev branch (exact -dev.N image tag)
+
 coming_soon: []

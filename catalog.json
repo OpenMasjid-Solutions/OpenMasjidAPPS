@@ -214,9 +214,9 @@
       "version": "0.12.0-dev.23",
       "author": "OpenMasjid-Solutions",
       "license": "AGPL-3.0-only",
-      "icon": "https://raw.githubusercontent.com/OpenMasjid-Solutions/OpenMasjidKiosk/0fe610b8d9c18f8d89171ee8fc4ccc751d31dd26/icon.svg",
+      "icon": "https://raw.githubusercontent.com/OpenMasjid-Solutions/OpenMasjidKiosk/e0cd9c5e6ea1a75c6f70f3145a05f95b3002b640/icon.svg",
       "screenshots": [
-        "https://raw.githubusercontent.com/OpenMasjid-Solutions/OpenMasjidKiosk/0fe610b8d9c18f8d89171ee8fc4ccc751d31dd26/screenshots/1.svg"
+        "https://raw.githubusercontent.com/OpenMasjid-Solutions/OpenMasjidKiosk/e0cd9c5e6ea1a75c6f70f3145a05f95b3002b640/screenshots/1.svg"
       ],
       "description": "Turn an Android tablet and a **Stripe Reader M2** into a beautiful tap-to-donate\nstation for your masjid. Six one-tap amounts, custom amounts, monthly giving and\nemail receipts — all managed from a simple admin page on your OpenMasjidOS.\n\n- **Set it up from a web page** — install here, open the admin panel, and browse\n  to the setup page on your tablet to download the kiosk app and pair it with a 6-digit code.\n- **Reader over Bluetooth or USB** — the Stripe Reader M2 takes the card; card\n  numbers go straight to Stripe and never touch this app or the tablet.\n- **One-time or monthly** — six preset amounts plus a custom amount, with an\n  optional name & email for a receipt.\n- **Locked-down kiosk** — the tablet runs as a full-screen giving station and can\n  only be exited with a PIN you set in the admin panel.\n\n**Nothing to fill in here — just install.** When it's running, press **Open** — it\nsigns you in with your OpenMasjidOS login and matches your dashboard's look. Then\nchoose your Stripe account, design your giving screen, and pair a tablet. It runs\nhappily on a Raspberry Pi or mini-PC, on your masjid's own network.\n",
       "ports": [

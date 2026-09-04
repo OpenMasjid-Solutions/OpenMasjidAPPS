@@ -640,3 +640,26 @@ test('APPS-023 THE GAP: a digest-pinned dev entry has no dev TAG, so only the ve
   assert.equal(isDevImageRef(refs[0]), false, 'the image is a release tag — the image check finds nothing');
   assert.equal(isDevVersion('0.2.0-dev.6'), true, 'the version is what catches it');
 });
+
+// ── APPS-024: the stable leakage gate must judge the VERSION too ──────────────────
+
+test('APPS-024 a prerelease version is dev content, even behind a release tag', () => {
+  // The gate judged the registry ref and the compose image tags but never the entry
+  // version, so a manifest declaring 0.9.0-dev.3 reached by a proper release tag with a
+  // digest-pinned image passed cleanly onto main. lint already had isDevVersion(); the
+  // build did not use it.
+  const reasons = findDevArtifacts({ ref: 'v1.0.0', version: '0.9.0-dev.3', composeText: 'services: {}' });
+  assert.equal(reasons.length, 1);
+  assert.match(reasons[0], /semver prerelease/);
+});
+
+test('APPS-024 a release version on a release tag is still clean', () => {
+  assert.deepEqual(findDevArtifacts({ ref: 'v1.0.0', version: '1.0.0', composeText: 'services: {}' }), []);
+  assert.deepEqual(findDevArtifacts({ ref: 'v1.0.0', composeText: 'services: {}' }), []);
+});
+
+test('APPS-024 the version reason stacks with the ref and image reasons', () => {
+  const compose = ['services:', '  a:', '    image: ghcr.io/o/r:dev'].join(String.fromCharCode(10));
+  const reasons = findDevArtifacts({ ref: 'dev', version: '2.0.0-dev.1', composeText: compose });
+  assert.equal(reasons.length, 3, JSON.stringify(reasons));
+});

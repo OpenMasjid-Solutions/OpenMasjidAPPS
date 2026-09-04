@@ -170,6 +170,19 @@ function interpProblems(doc, errors) {
     const block = doc && typeof doc[section] === 'object' && !Array.isArray(doc[section]) ? doc[section] : {};
     for (const [name, defRaw] of Object.entries(block)) {
       const def = defRaw && typeof defRaw === 'object' && !Array.isArray(defRaw) ? defRaw : {};
+      // driver_opts is where a local-driver bind mount actually names its host path
+      // (`type: none`, `device: /`, `o: bind`). The literal form is caught below, but an
+      // interpolated one is resolved by Compose at install from the .env the platform
+      // writes, so the catalog would be vouching for a path it never saw. (APPS-023)
+      const dopts = def.driver_opts && typeof def.driver_opts === 'object' ? def.driver_opts : {};
+      for (const [ok, ov] of Object.entries(dopts)) {
+        if (hasInterp(ov)) {
+          errors.add(
+            (section === 'volumes' ? 'volume "' : 'network "') + name + '": driver_opts."' + ok +
+              '" is chosen at install time with ${...} — it could resolve to any host path',
+          );
+        }
+      }
       for (const key of ['name', 'external', 'driver']) {
         if (hasInterp(def[key])) {
           errors.add(
@@ -223,7 +236,16 @@ export function validateCompose(text) {
       [/^\s*build\s*:/m, 'build (must ship a pre-built image)'],
     ];
     for (const [re, why] of RAW) if (re.test(text)) errors.add(why);
-    warnings.add(`compose did not parse as YAML (${e.message}); ran coarse checks only`);
+    // FAIL CLOSED. This used to be a warning, and warn() only increments a counter — so
+    // an app repo could switch the entire structured gate off and still publish. The
+    // `yaml` package refuses a document with >99 alias nodes ("Excessive alias count"),
+    // while Docker Compose's Go parser reads the same file happily: ~2 KB of aliases in an
+    // unused `x-` key dropped every structured check — bind mounts, group_add,
+    // cgroup_parent, external volumes/networks, reserved labels, and the secrets/configs
+    // `file:` rule CLAUDE.md §10 requires here BY NAME — and the build still exited 0.
+    // The RAW list above is best-effort extra detail, never the gate. If the catalog
+    // cannot read a file, it cannot vouch for it. (APPS-022)
+    errors.add(`docker-compose.yml did not parse as YAML (${e.message}) — the catalog cannot vouch for a file it cannot read`);
     if (mergeSeen) errors.add('uses a YAML merge key ("<<:") — merges config the safety check cannot see');
     return { errors: [...errors], warnings: [...warnings] };
   }

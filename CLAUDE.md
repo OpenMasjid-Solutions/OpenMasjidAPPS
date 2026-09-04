@@ -592,6 +592,16 @@ top-level `secrets:`/`configs:` with a `file:` source pointing outside the app f
 `privileged` (`yes|on|1|"true"`, via `isTruthyFlag` — not just `=== true`), on top of the existing
 namespace/cap/device/mount checks. When the platform adds a compose check, add the same one here.
 
+It must also **fail closed**. A compose the YAML parser refuses is a hard **error**, never a
+warning: the raw-regex list is far weaker than the structured walk, and until v0.7.0 an app repo
+could switch the structured checks off entirely — `yaml` rejects a document with more than 99 alias
+nodes, Docker Compose's own parser reads it happily, so ~2 KB of aliases in an unused `x-` key
+dropped every mount, `group_add`, external-volume and reserved-label check while the build still
+exited 0. If the catalog cannot read a file it cannot vouch for it. Equally, **`${...}` in a
+safety-relevant position is an error**, including a top-level volume's `driver_opts` — the value is
+chosen at install from the `.env` the platform writes, so the catalog would be vouching for a host
+path it never saw. (APPS-022, APPS-023)
+
 **Supply-chain hardening (app authors — full version in `docs/BUILDING_AN_APP.md` §2b):**
 - **Digest-pin the image** with `@sha256:…` in the compose — pinning the tag alone is not enough,
   because a tag can be moved to repoint at a different (backdoored) image.

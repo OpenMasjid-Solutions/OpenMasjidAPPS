@@ -45,6 +45,7 @@ single [`catalog.json`](./catalog.json) the platform fetches to populate its App
 | **[OpenMasjid Donations](https://github.com/OpenMasjid-Solutions/OpenMasjidDonations)** | `donations` | Card donations on the masjid's network with Stripe — appeals, Zakat, Gift Aid, monthly plans, receipts |
 | **[OpenMasjid Kiosk](https://github.com/OpenMasjid-Solutions/OpenMasjidKiosk)** | `donations` | Tap-to-donate kiosk for a wall-mounted tablet with a Stripe reader |
 | **[OpenMasjid Students](https://github.com/OpenMasjid-Solutions/OpenMasjidStudents)** | `admin` | Tuition & fees for a madrasa — pay online, at the kiosk, or in person |
+| **[OpenMasjid Companion](https://github.com/OpenMasjid-Solutions/OpenMasjidCompanion)** | `community` | The masjid's own app for the congregation — prayer times, announcements and notifications on a phone |
 | **[OpenMasjid WA](https://github.com/OpenMasjid-Solutions/OpenMasjidWA)** | `utilities` | A WhatsApp number the masjid can send from — packaging for [OpenWA](https://github.com/rmyndharis/OpenWA) (MIT), run unmodified |
 
 Categories are exactly: `displays` `donations` `community` `quran` `admin` `utilities`.
@@ -117,10 +118,10 @@ viewer the platform admin?"), never as a credential to call the platform's admin
 Full normative contract: [docs/BUILDING_AN_APP.md §7](./docs/BUILDING_AN_APP.md) and
 [`CLAUDE.md` §7b](CLAUDE.md).
 
-Of the five listed apps, the four masjid-facing ones opt into `sso`, `notifications`, `domain` and
-`https`; three use `stripe`, `email`, `alerts` and the app-to-app broker; and `students` is the
-first to use `whatsapp`. **`openwa` opts into nothing** — it is the gateway the platform calls *in*
-to, not an app that calls out, and it is deliberately never tunnelled.
+Of the six listed apps, all five masjid-facing ones declare `sso`, `domain` and the app-to-app
+broker; four add `notifications`, `https` and `whatsapp`; three use `stripe` and `email`; and
+three offer admin `commands`. **`openwa` opts into nothing** — it is the gateway the platform
+calls *in* to, not an app that calls out, and it is deliberately never tunnelled.
 
 ## What the build refuses
 
@@ -160,7 +161,7 @@ already shipped):
 npm install
 npm run build                      # regenerate catalog.json for this branch's channel
 npm run build -- --channel main    # or state it (main | dev)
-npm test                           # 249 unit tests, zero test dependencies (node:test)
+npm test                           # 284 unit tests, zero test dependencies (node:test)
 npm run lint                       # syntax, SPDX headers, platform contract, channel hygiene
 npm run check                      # lint + tests — run before every commit
 ```

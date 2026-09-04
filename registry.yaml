@@ -96,27 +96,8 @@ apps:
 # only here; when one ships, give it a repo + tag and move it up into `apps:`.
   - id: companion
     repo: OpenMasjid-Solutions/OpenMasjidCompanion
-    # ┌─────────────────────────────────────────────────────────────────────────────────┐
-    # │ DEV CHANNEL ONLY — this entry is NOT ready to be merged to main.                │
-    # └─────────────────────────────────────────────────────────────────────────────────┘
-    # OpenMasjidCompanion has no stable release yet. Its `main` carries a bootstrap commit
-    # and nothing else — no manifest.yaml, no docker-compose.yml — so `ref` below cannot
-    # resolve on the stable channel and the build FAILS:
-    #
-    #   $ node scripts/build-catalog.mjs --channel main
-    #   ✗ companion: could not fetch manifest.yaml from …@771cf30… (HTTP 404)   → exit 1
-    #
-    # That is a blocked catalog release, not a broken catalog for masjids (the build refuses
-    # rather than publishing), but it blocks EVERY app's release until it is dealt with. So
-    # before the next `dev` → `main` catalog release, either:
-    #   • Companion has cut v0.1.0 — then set `ref: v0.1.0` and `commit:` to the SHA of its
-    #     digest-pin commit, and this entry is complete and correct on both channels; or
-    #   • drop these four lines from main's registry.yaml and re-add them when it has.
-    #
-    # `ref` is deliberately Companion's CURRENT main (the bootstrap commit) rather than a
-    # tag that does not exist: it is the truthful answer to "where is this app's stable
-    # channel today", and it makes the failure name the real cause.
-    ref: 771cf308567c7db891fae23b0eda9ffccc13431b   # OpenMasjidCompanion@main — no release yet
+    ref: v0.2.0                                  # v0.2.0 — the second release. Put a QR code on your noticeboard and anyone who scans it gets your prayer times on their phone, and can keep them there like an app — no app store, nothing to sign up for. The times come straight from OpenMasjid Display, so what a musalli sees is what is on your wall, including any Iqamah change you have scheduled: it is marked on the month view and shown in a different colour on the day it takes effect. This app never works out a prayer time of its own. There is a countdown to the next Iqamah, Jumuʿah, the Hijri date, and a page that looks like the time of day — dark before Fajr, light by mid-morning, dark again after Maghrib. It works with no signal and says plainly when it last checked. Musallis can turn on reminders per phone, choosing which prayers and whether to be told at the adhan or a set number of minutes before the Iqamah; Jumuʿah has its own switch and if you hold more than one they pick which. YOU ARE SHOWN HOW MANY PHONES SIGNED UP AND NOTHING ELSE — no name, number or address is kept for anybody who does, and reminders come from your own box with no outside service involved. You can send an announcement to every phone signed up — a funeral, a closure, a changed Iqamah — with your masjid's name on it; it asks you to confirm first, showing how many phones and quoting your words back, because it cannot be taken back. You can also set one to send itself: once on a date, every day, or on chosen days at a chosen time, on your masjid's own clock, skipped rather than delivered late if the box was off. Musallis have a separate switch for notices, so somebody who wants silence at prayer times can still hear from you. There is a Qibla compass that works from the phone's own location, which never leaves it and is never stored. Paste the share link of any appeal from OpenMasjid Donations and it appears as a tile with its progress; tapping Donate opens your Donations page to give, and this app never handles money. Add your phone number, email, address, website and links to WhatsApp, Instagram, Facebook, X, YouTube or Telegram and they show at the top of Settings — fill in as much or as little as you like, anything blank is simply not shown. The QR code points at a page that walks people through installing it, which knows which phone and browser is reading it and gives the steps that are actually true for it — including what to do when Add to Home Screen is missing from an iPhone's Share sheet, and what to do if the link was opened inside WhatsApp or Instagram, where it cannot work at all. The admin panel tells you how many phones opened your app in the last month, iPhone or Android, and how many opened it from their home screen rather than a browser — which is the number that tells you whether the poster is working; it counts phones, never people, keeps nothing about anybody, and forgets after 90 days. BEFORE IT CAN REACH A PHONE, turn on Remote access in OpenMasjidOS and share this app: a QR code pointing at an address inside your building works for nobody outside it, and until that is done the app says so plainly rather than printing a poster that cannot work. Nothing to fill in at install — open it and it walks you through the rest. One-click install; commit below is the immutable pin, and the app's compose pins the @sha256 image digest
+    commit: 9afff24269b2584b79dda365fedb84e84a4c0854   # the tagged digest-pin commit; the app's compose pins the @sha256 image digest
     dev_ref: dev                                 # dev channel — tracks the app's dev branch (exact -dev.N image tag)
 
 coming_soon: []

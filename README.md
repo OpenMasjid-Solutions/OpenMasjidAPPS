@@ -45,6 +45,7 @@ single [`catalog.json`](./catalog.json) the platform fetches to populate its App
 | **[OpenMasjid Donations](https://github.com/OpenMasjid-Solutions/OpenMasjidDonations)** | `donations` | Card donations on the masjid's network with Stripe — appeals, Zakat, Gift Aid, monthly plans, receipts |
 | **[OpenMasjid Kiosk](https://github.com/OpenMasjid-Solutions/OpenMasjidKiosk)** | `donations` | Tap-to-donate kiosk for a wall-mounted tablet with a Stripe reader |
 | **[OpenMasjid Students](https://github.com/OpenMasjid-Solutions/OpenMasjidStudents)** | `admin` | Tuition & fees for a madrasa — pay online, at the kiosk, or in person |
+| **[OpenMasjid Companion](https://github.com/OpenMasjid-Solutions/OpenMasjidCompanion)** | `community` | The masjid's own app for the congregation — prayer times, announcements and notifications on a phone |
 | **[OpenMasjid WA](https://github.com/OpenMasjid-Solutions/OpenMasjidWA)** | `utilities` | A WhatsApp number the masjid can send from — packaging for [OpenWA](https://github.com/rmyndharis/OpenWA) (MIT), run unmodified |
 
 Categories are exactly: `displays` `donations` `community` `quran` `admin` `utilities`.
@@ -104,7 +105,7 @@ in the app's `manifest.yaml` — each one optional, backwards-compatible, and of
 | `stripe: true` | Fetches shared Stripe keys from the OS vault (`GET /api/fabric/stripe`) instead of each app storing its own. |
 | `domain: true` | Learns its own public URL (`GET /api/fabric/site`) for absolute links — Stripe return URLs, webhooks, QR codes. |
 | `email: true` | Sends mail (receipts, parent notices) through the admin's provider via `POST /api/fabric/email` — the app never sees the mail credentials. |
-| `whatsapp: true` | Sends WhatsApp through the masjid’s own gateway via `POST /api/fabric/whatsapp` — the app never sees the gateway, its key, or the linked number. Queues on **one paced queue shared by every app**; `202 {queued}` never means sent. Group posting is included (the admin approves which groups), so there is no separate flag. |
+| `whatsapp: true` | Sends WhatsApp through the masjid’s own gateway via `POST /api/fabric/whatsapp` — the app never sees the gateway, its key, or the linked number. One serialised queue shared by every app, so `202 {queued}` never means sent and, if the link is down, a message is **held until an admin releases it** rather than dropped. The `202` carries an `id`; `GET .../whatsapp/status/<id>` says what became of it and `GET .../whatsapp/suspect` names any window in which this app’s messages were recorded sent but may never have arrived. Group posting and images are included, so there is no separate flag. |
 | `alerts: [...]` | Declares named alert types it can raise (`POST /api/fabric/alert`); the admin gets a granular on/off per alert. |
 | `commands: [...]` | Declares admin commands a masjid admin runs by messaging the masjid’s WhatsApp number (`!<app-id>`). The platform decides who may run what, renders the menu and confirms; the app just executes. Declaring it alone issues the app its secret. |
 | `fabric: {provides, consumes}` | App-to-app broker: serve a capability, or call another app's, brokered by the platform. |
@@ -117,10 +118,10 @@ viewer the platform admin?"), never as a credential to call the platform's admin
 Full normative contract: [docs/BUILDING_AN_APP.md §7](./docs/BUILDING_AN_APP.md) and
 [`CLAUDE.md` §7b](CLAUDE.md).
 
-Of the five listed apps, the four masjid-facing ones opt into `sso`, `notifications`, `domain` and
-`https`; three use `stripe`, `email`, `alerts` and the app-to-app broker; and `students` is the
-first to use `whatsapp`. **`openwa` opts into nothing** — it is the gateway the platform calls *in*
-to, not an app that calls out, and it is deliberately never tunnelled.
+Of the six listed apps, all five masjid-facing ones declare `sso`, `domain` and the app-to-app
+broker; four add `notifications`, `https` and `whatsapp`; three use `stripe` and `email`; and
+three offer admin `commands`. **`openwa` opts into nothing** — it is the gateway the platform
+calls *in* to, not an app that calls out, and it is deliberately never tunnelled.
 
 ## What the build refuses
 
@@ -160,7 +161,7 @@ already shipped):
 npm install
 npm run build                      # regenerate catalog.json for this branch's channel
 npm run build -- --channel main    # or state it (main | dev)
-npm test                           # 249 unit tests, zero test dependencies (node:test)
+npm test                           # 284 unit tests, zero test dependencies (node:test)
 npm run lint                       # syntax, SPDX headers, platform contract, channel hygiene
 npm run check                      # lint + tests — run before every commit
 ```

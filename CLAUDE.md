@@ -140,7 +140,7 @@ OpenMasjidOS repo.**
    | `ports` | – | Array of `{ container: number, label?: string }` — informational. |
    | `sso` | – | `true` to opt into single sign-on (§7b). The platform then issues the app a per-app secret at install and honours its `/api/auth/session` calls. Omit/false = no SSO. |
    | `notifications` | – | `true` to opt into Fabric notifications (§7b) — the app may POST `/api/fabric/notify` to relay messages to the masjid's configured webhook (Slack/Discord/generic). Omit/false = no notifications. |
-   | `whatsapp` | – | `true` to opt into Fabric WhatsApp (§7b) — the app may POST `/api/fabric/whatsapp` and the platform sends through the masjid's own `openwa` gateway, on one paced queue shared by every app. The app never sees the gateway, its key, or the linked number. Covers group posting too (the admin approves groups in Settings), so there is **no** `groups` key. Omit/false = no WhatsApp. |
+   | `whatsapp` | – | `true` to opt into Fabric WhatsApp (§7b) — the app may POST `/api/fabric/whatsapp` and the platform sends through the masjid's own `openwa` gateway, on one serialised queue shared by every app. The app never sees the gateway, its key, or the linked number. `202 {queued}` is not `sent`, and a message is **held, not dropped, while the link is down** — so it can stay queued for days. The same capability also grants the read-only outcome routes (`status/<id>`, `suspect`) and covers group posting and images, so there is **no** `groups` key and nothing further to declare. Omit/false = no WhatsApp. |
    | `https` | – | **Set this ONLY if your app uses Stripe.** Stripe's in-person M2 reader (Stripe Terminal SDK) and in-page card fields (Elements) both require a secure context (HTTPS). When `true`, the platform serves your app over HTTPS on a dedicated port (TLS-terminated with the dashboard's cert) and the "Open" URL becomes `https://`. **Every non-Stripe app must omit this** — it stays on plain HTTP. |
    | `commands` | – | Admin commands a masjid admin runs by messaging the masjid's WhatsApp number (`!<app-id>`). A list of `{id, label, description?, argument?{label, required?}, confirm?}`, max 12. Validated by `scripts/commands.mjs`, which **mirrors OpenMasjidOS `parseCommands`** — keep them in step or "passes the build" stops meaning "installs cleanly". Declaring it alone issues the app its Fabric secret. `commands` is a **reserved** `fabric.provides` capability (same handler, different trust boundary), and the app ids `os` `omos` `openmasjid` `openmasjidos` `platform` `help` are refused because a command's namespace is the app id. |
    | `comingSoon` | – | Set by the registry's `coming_soon:` list, **not** by app authors. Marks a teaser entry with no repo/compose; the App Store shows a "Coming soon" badge and won't install it. |
@@ -591,6 +591,16 @@ branch and the raw-regex fallback): `volumes_from`, `env_file` with an absolute 
 top-level `secrets:`/`configs:` with a `file:` source pointing outside the app folder, and **truthy**
 `privileged` (`yes|on|1|"true"`, via `isTruthyFlag` — not just `=== true`), on top of the existing
 namespace/cap/device/mount checks. When the platform adds a compose check, add the same one here.
+
+It must also **fail closed**. A compose the YAML parser refuses is a hard **error**, never a
+warning: the raw-regex list is far weaker than the structured walk, and until v0.7.0 an app repo
+could switch the structured checks off entirely — `yaml` rejects a document with more than 99 alias
+nodes, Docker Compose's own parser reads it happily, so ~2 KB of aliases in an unused `x-` key
+dropped every mount, `group_add`, external-volume and reserved-label check while the build still
+exited 0. If the catalog cannot read a file it cannot vouch for it. Equally, **`${...}` in a
+safety-relevant position is an error**, including a top-level volume's `driver_opts` — the value is
+chosen at install from the `.env` the platform writes, so the catalog would be vouching for a host
+path it never saw. (APPS-022, APPS-023)
 
 **Supply-chain hardening (app authors — full version in `docs/BUILDING_AN_APP.md` §2b):**
 - **Digest-pin the image** with `@sha256:…` in the compose — pinning the tag alone is not enough,

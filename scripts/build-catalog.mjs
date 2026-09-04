@@ -559,12 +559,22 @@ for (const entry of entries) {
   }
   const { fetchRef, immutable, base, manifestText, composeText } = src;
 
+  // Parsed here rather than after the leakage gate, because the gate has to judge the
+  // entry's VERSION too — a prerelease is dev content whatever ref carried it. (APPS-024)
+  let m;
+  try {
+    m = parse(manifestText) ?? {};
+  } catch (e) {
+    fail(`${id}: manifest.yaml is not valid YAML — ${e.message}`);
+  }
+
+
   // THE LEAKAGE GATE. main/catalog.json is production: the platform fetches that
   // raw file with no deploy step in between, so a dev ref or a dev-tagged image
   // that lands here is immediately live to every masjid on the stable channel.
   // Fail the build rather than publish it.
   if (!isDevChannel) {
-    const devArtifacts = findDevArtifacts({ ref: src.declared, composeText });
+    const devArtifacts = findDevArtifacts({ ref: src.declared, version: m.version, composeText });
     if (devArtifacts.length) {
       fail(
         `${id}: development content cannot be published on the stable channel:\n   - ` +
@@ -577,13 +587,6 @@ for (const entry of entries) {
     // Declared a dev branch but it still points at a release image — usually the
     // dev branch's compose was never switched to the :dev tag.
     notice(`${id}: dev_ref "${devRef}" resolved, but its compose references no dev-tagged image — the dev channel will install the release image.`);
-  }
-
-  let m;
-  try {
-    m = parse(manifestText) ?? {};
-  } catch (e) {
-    fail(`${id}: manifest.yaml is not valid YAML — ${e.message}`);
   }
 
   if (m.id !== id) fail(`${id}: manifest id "${m.id}" must equal the registry id "${id}"`);

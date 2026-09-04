@@ -71,7 +71,7 @@ export const BOOLEAN_CAPABILITIES = [
     key: 'whatsapp',
     summary:
       'Send WhatsApp through the masjid\'s own OpenWA gateway over POST /api/fabric/whatsapp — the app never ' +
-      'sees the gateway, its key, or the linked number. Every app shares ONE paced queue, which is the only ' +
+      'sees the gateway, its key, or the linked number. Every app shares ONE serialised queue, which is the only ' +
       'thing standing between the masjid and a banned number. Covers group posting too (the admin approves ' +
       'which groups in Settings; apps read the approved list at runtime), so there is no separate groups key.',
   },

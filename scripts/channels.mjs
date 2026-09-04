@@ -435,8 +435,19 @@ export function devEntryProblems({ version, composeText } = {}) {
  * is never recognisably "dev", which is exactly why the declared value is what
  * gets judged).
  */
-export function findDevArtifacts({ ref, composeText } = {}) {
+export function findDevArtifacts({ ref, version, composeText } = {}) {
   const reasons = [];
+
+  // The entry's own VERSION is dev content too. The gate judged the ref and the image
+  // tags but never this, so `0.9.0-dev.3` in a manifest reached by a release tag with a
+  // digest-pinned image passed cleanly — and the platform, which orders versions to
+  // decide what to offer, would rank a prerelease BELOW the release it follows. lint
+  // already had isDevVersion() for exactly this; the build did not use it. (APPS-024)
+  if (isDevVersion(version)) {
+    reasons.push(
+      `version "${version}" is a semver prerelease — development versions must never ship on the stable channel`,
+    );
+  }
 
   if (typeof ref === 'string' && ref && !isStableRef(ref)) {
     reasons.push(

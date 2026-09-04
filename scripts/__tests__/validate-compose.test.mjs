@@ -276,10 +276,10 @@ test('secret with an in-folder file source is allowed', () =>
   clean(`services:\n  app:\n    image: n\nsecrets:\n  s:\n    file: ./s.txt\n`));
 
 // --- the raw-regex fallback still works when YAML will not parse ---------
-test('unparseable YAML still rejects privileged and warns', () => {
+test('unparseable YAML still rejects privileged, and now FAILS rather than warning', () => {
   const { errors, warnings } = validateCompose('services:\n  a:\n    privileged: true\n  : : :\n\tbad');
   assert.ok(errors.some((e) => e.includes('privileged')));
-  assert.ok(warnings.some((w) => w.includes('did not parse as YAML')));
+  assert.ok(errors.some((e) => e.includes('did not parse as YAML')));
 });
 
 test('a YAML alias bomb degrades to the raw checks instead of hanging', () => {
@@ -292,7 +292,7 @@ test('a YAML alias bomb degrades to the raw checks instead of hanging', () => {
   const { errors, warnings } = validateCompose(bomb);
   const ms = Number(process.hrtime.bigint() - t0) / 1e6;
   assert.ok(ms < 1000, `alias bomb took ${ms}ms`);
-  assert.ok(warnings.some((w) => w.includes('did not parse as YAML')));
+  assert.ok(errors.some((e) => e.includes('did not parse as YAML')));
   assert.ok(errors.some((e) => e.includes('privileged')));
 });
 
@@ -470,4 +470,100 @@ services:
       - SHIFT=<<never>>
 `);
   assert.equal(r.errors.some((e) => e.includes('YAML merge key')), false, JSON.stringify(r.errors));
+});
+
+// ── APPS-022 / APPS-023: the gate must not be switchable off by the file it polices ──
+
+test('APPS-022 an unparseable compose is a hard ERROR, not a warning', () => {
+  // It used to warn and return, and warn() in build-catalog.mjs only increments a
+  // counter — so the build exited 0 and published the compose verbatim.
+  const r = validateCompose(`
+services:
+  app:
+    image: ghcr.io/o/r:1.0.0
+  bad: [unclosed
+`);
+  assert.ok(
+    r.errors.some((e) => /did not parse as YAML/.test(e)),
+    'expected a hard error, got: ' + JSON.stringify(r),
+  );
+});
+
+test('APPS-022 THE BYPASS: an alias bomb cannot disable the structured checks', () => {
+  // `yaml` refuses a document with >99 alias nodes ("Excessive alias count"), while
+  // Docker Compose's Go parser reads the same file happily. ~2 KB of aliases in an
+  // unused `x-` key used to drop EVERY structured check — bind mounts, group_add,
+  // external volumes, reserved labels, the secrets `file:` rule — and the build still
+  // exited 0, publishing the compose to the file every masjid installs from.
+  const bomb =
+    'x-l: &a q\n' +
+    'x-list:\n' +
+    Array.from({ length: 200 }, () => '  - *a').join('\n') +
+    '\n' +
+    'services:\n' +
+    '  app:\n' +
+    '    image: ghcr.io/o/r:1.0.0\n' +
+    '    volumes:\n' +
+    '      - /:/hostfs\n' +
+    '    group_add: [docker]\n';
+  const r = validateCompose(bomb);
+  assert.ok(r.errors.length > 0, 'an unreadable compose must never pass');
+  assert.ok(r.errors.some((e) => /did not parse as YAML/.test(e)), JSON.stringify(r.errors));
+});
+
+test('APPS-022 a compose that DOES parse is unaffected — no false failure', () => {
+  const r = validateCompose(`
+services:
+  app:
+    image: ghcr.io/o/r:1.0.0@sha256:${'a'.repeat(64)}
+    ports: ['8080:80']
+    volumes:
+      - data:/app/data
+volumes:
+  data:
+`);
+  assert.deepEqual(r.errors, []);
+  assert.deepEqual(r.warnings, []);
+});
+
+test('APPS-023 an interpolated volume driver_opts device is refused', () => {
+  // The literal form (type: none / o: bind / device: /) was already caught. The
+  // interpolated one is resolved by Compose at install from the .env the platform
+  // writes, so the catalog would be vouching for a host path it never saw.
+  const r = validateCompose(`
+services:
+  app:
+    image: ghcr.io/o/r:1.0.0
+    volumes:
+      - data:/x
+volumes:
+  data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: \${HOST_DIR}
+`);
+  assert.ok(
+    r.errors.some((e) => /driver_opts\."device" is chosen at install time/.test(e)),
+    'expected the interpolated device to be refused, got: ' + JSON.stringify(r.errors),
+  );
+});
+
+test('APPS-023 a literal driver_opts bind is still refused (no regression)', () => {
+  const r = validateCompose(`
+services:
+  app:
+    image: ghcr.io/o/r:1.0.0
+    volumes:
+      - data:/x
+volumes:
+  data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /
+`);
+  assert.ok(r.errors.some((e) => /local-driver bind mount/.test(e)), JSON.stringify(r.errors));
 });

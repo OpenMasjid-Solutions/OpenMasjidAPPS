@@ -468,6 +468,20 @@ your routes and emit your asset/link URLs under `basePath` so they resolve behin
 from `/api/fabric/site` (above); when `basePath` is `""` (no remote access, or accessed directly on the
 LAN) serve at root as usual. A static SPA should set its base href / router basename from it.
 
+**Every app with a web page needs this, shared or not** — the admin can open any app from the
+OpenMasjidOS dashboard when managing it from outside the masjid. Two things went wrong in real apps,
+so check both by opening yours from the remote dashboard:
+
+- **Every page, not just one.** Each HTML page you serve must reach its assets, API and WebSocket under
+  `basePath`. A page sent with root URLs (`/assets/index.js`) loads its scripts from the dashboard
+  instead and shows a blank page — the Display's control panel did, while its screen pages worked.
+- **Let single sign-on run through the tunnel.** From outside, the admin arrives with your app's
+  access token as `omos_session` (see the platform's `APP_MANIFEST_SPEC.md`, *Single sign-on from
+  outside the masjid*), so the route that checks "who is signed in?" with `/api/auth/session` — and the
+  admin features it unlocks — must be reachable there. Keep a password login, first-run setup or
+  password reset LAN-only if you like; an app that refuses its whole admin side over the tunnel shows
+  its own password screen instead of signing the admin in, as the Kiosk did.
+
 ### App-to-app broker — opt in with `fabric:` *(platform v0.40.0+)*
 
 Sometimes one app needs to call another (e.g. a donations page asking a students app for a family's

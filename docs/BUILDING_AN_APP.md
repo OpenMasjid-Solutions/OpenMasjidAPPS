@@ -478,9 +478,14 @@ so check both by opening yours from the remote dashboard:
 - **Let single sign-on run through the tunnel.** From outside, the admin arrives with your app's
   access token as `omos_session` (see the platform's `APP_MANIFEST_SPEC.md`, *Single sign-on from
   outside the masjid*), so the route that checks "who is signed in?" with `/api/auth/session` — and the
-  admin features it unlocks — must be reachable there. Keep a password login, first-run setup or
-  password reset LAN-only if you like; an app that refuses its whole admin side over the tunnel shows
-  its own password screen instead of signing the admin in, as the Kiosk did.
+  admin features it unlocks — must be reachable there. An app that refuses its whole admin side over
+  the tunnel shows its own password screen instead of signing the admin in, as the Kiosk did. But the
+  admin's *password* login, first-run setup and password reset must stay off the tunnel: from the
+  internet, admin access is the platform's two-step sign-in or nothing.
+- **Scope your cookies to `basePath` through the tunnel.** Every app shares one hostname there, so a
+  session cookie with `Path=/` is sent to every other app's server, which could replay it against
+  yours (the Donations admin session was). Use `Path=<basePath>` for a tunnel request; the LAN can
+  keep `Path=/`.
 
 ### App-to-app broker — opt in with `fabric:` *(platform v0.40.0+)*
 

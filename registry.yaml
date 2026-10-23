@@ -48,8 +48,8 @@
 apps:
   - id: display
     repo: OpenMasjid-Solutions/OpenMasjidDisplay
-    ref: v0.71.0                                 # v0.71.0 — the October security update (Node.js 22.23.4), and the control panel working from outside the masjid when opened from the OpenMasjidOS dashboard. Adhan and Iqamah can each have their own sound, with a Play button to hear it first; the printed calendar marks the days the Iqamah changes; and a Pi screen that loses its server keeps showing the timetable. Plus everything from v0.70.0, the Raspberry Pi release. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
-    commit: ad158c7c2d0ce3286bed87dcae946db8ba624d60
+    ref: v0.72.0                                 # v0.72.0 — a security and reliability update. The video server takes video from Display alone (no device on the network can replace what decoder screens show); password, PIN and setup-code guessing is properly limited; other apps on the same box can no longer use the admin's sign-in; and fixes to Iqamah times, the yearly CSV template, the Adhan sound at Dhuhr and WhatsApp notices. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
+    commit: 5292e2fb04798a95469e32ed79f7393ec63fe3f1
     dev_ref: dev                                 # dev channel — tracks the app's dev branch (:dev image)
   - id: donations
     repo: OpenMasjid-Solutions/OpenMasjidDonations

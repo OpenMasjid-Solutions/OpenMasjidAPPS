@@ -68,8 +68,8 @@ apps:
     dev_ref: dev                                 # dev channel — a scheduled job follows upstream OpenWA releases onto this branch; stable is promoted by hand
   - id: students
     repo: OpenMasjid-Solutions/OpenMasjidStudents
-    ref: v0.52.0                                 # v0.52.0 — the October security update (Node.js 22.23.4), a real student record, and admissions. Admins can work from anywhere by opening Students from the OpenMasjidOS dashboard; an admin password is never accepted from the internet. Plus everything from v0.51.0. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
-    commit: 604d70e1aa1b5d68559bed0e0a78bc4a498b4c0a
+    ref: v0.53.0                                 # v0.53.0 — housekeeping: nothing changes on screen and no masjid needs to do anything after it installs. A full security audit (zero known advisories in anything that ships inside the container), the written guide rewritten so it describes the student record and admissions it still claimed did not exist, and three new build-time guards against future mistakes. What a masjid can actually use is still what v0.52.0 brought: the October security update (Node.js 22.23.4), a real student record, and admissions, with admins able to work from anywhere by opening Students from the OpenMasjidOS dashboard while an admin password is never accepted from the internet. One-click install; commit below is the immutable pin, and the app compose pins the @sha256 image digest
+    commit: b591e46ef92080920db0c847b5771241f852ccc5
     dev_ref: dev                                 # dev channel — tracks the app's dev branch (:dev image)
   # Delisted 2026-08-01: parking-attendant (SyButter/OpenMasjidParkingAttendant).
   # It was the only entry whose compose did not digest-pin its image, so the tag it
